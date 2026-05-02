@@ -1,4 +1,4 @@
-name: Java Build and Security Pipeline
+name: Java Build and Security Pipelines
 on:
   push: 
     branches:
