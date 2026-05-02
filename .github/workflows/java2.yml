@@ -1,11 +1,11 @@
-name: Java Build and Security Pipelines
+name: Java Build and Security Pipeline
 on:
   push: 
     branches:
-      - main      
+      - master      
   pull_request:
     branches:
-      - main  
+      - master
 jobs:
   build-and-push:
     name: Build · SAST · Scan · Push · Sign
