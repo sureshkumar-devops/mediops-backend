@@ -78,8 +78,46 @@ jobs:
         run: |
           FULL_IMAGE="${{ env.DOCKER_USER }}/${{ env.ECR_REPOSITORY }}:${{ steps.meta.outputs.image_tag }}"
           cd ${{ env.SERVICE_DIR }}
-          docker build -t "$FULL_IMAGE" .
-          echo "image=$FULL_IMAGE" >> $GITHUB_OUTPUT
+          docker build --build-arg UID=1000 --build-arg GID=1000 -t "$FULL_IMAGE" .
+          echo "full_image_path=$FULL_IMAGE" >> $GITHUB_OUTPUT
+      
+      - name: Trivy Image Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ steps.docker-build.outputs.full_image_path }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: HIGH,CRITICAL
+          exit-code: '0'
+          ignore-unfixed: true
+          
+      - name: Upload Trivy SARIF to GitHub Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy-${{ env.SERVICE_NAME }}
+       
+      - name: Push Docker Image
+        id: push
+        run: |
+          IMAGE="${{ steps.docker-build.outputs.full_image_path }}"
+          docker push "$IMAGE"
+          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE" | awk -F@ '{print $2}')
+          echo "digest=$DIGEST" >> $GITHUB_OUTPUT
+          echo "Pushed: $IMAGE  (digest: $DIGEST)"
+          
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3.5.0
+      
+      - name: Cosign — Sign image (keyless, GitHub OIDC → Fulcio → Rekor)
+        run: |
+          cosign sign --yes ${{ steps.docker-build.outputs.full_image_path }}
 
+          
+        
+        
+          
+      
           
           
