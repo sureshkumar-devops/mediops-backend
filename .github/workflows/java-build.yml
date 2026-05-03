@@ -37,3 +37,7 @@ jobs:
           distribution: temurin
           cache: maven
           
+      - name: Start PostgreSQL
+        run: |
+          docker run -d --name testdb -e POSTGRES_DB=testdb -e POSTGRES_USER=testuser -e POSTGRES_PASSWORD=testpass -p 5432:5432 postgres:15-alpine
+          until docker exec testdb pg_isready -U testuser; do sleep 2; done
