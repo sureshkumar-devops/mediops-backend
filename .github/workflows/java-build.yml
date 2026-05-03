@@ -77,7 +77,8 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ${{ env.SERVICE_DIR }}
-          file: ./Dockerfile
+          echo "CONTEXT: ${{ env.SERVICE_DIR}}"
+          file: Dockerfile          
           push: true
           tags: |
              ${{ env.DOCKER_USER }}/${{ env.ECR_REPOSITORY }}:${{ steps.meta.outputs.image_tag }}
