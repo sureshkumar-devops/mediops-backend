@@ -10,7 +10,7 @@ on:
 env:
   SERVICE_NAME: "api-gateway"
   SERVICE_DIR: "./api-gateway"
-  ECR_REPOSITORY: ""
+  ECR_REPOSITORY: "api-gateway"
   AWS_REGION: "ap-south-1"
   AWS_ACCOUNT_ID: ""
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
@@ -54,14 +54,30 @@ jobs:
           SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/testdb
           SPRING_DATASOURCE_USERNAME: testuser
           SPRING_DATASOURCE_PASSWORD: testpass
-
+       
       - name: CodeQL — Analyze
         uses: github/codeql-action/analyze@v3
         with:
           category: /language:java
- 
+      
       - name: Semgrep SAST
         uses: semgrep/semgrep-action@v1
         continue-on-error: true
         with:
           config: p/java p/owasp-top-ten
+      
+      - name: Login Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+        
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+             ${{ secrets.DOCKER_USERNAME }}/${{ env.ECR_REPOSITORY }}:${{ steps.meta.outputs.image_tag }}
+          echo "IMAGE-TAG: ${{ secrets.DOCKER_USERNAME }}/${{ env.ECR_REPOSITORY }}:${{ steps.meta.outputs.image_tag }}" >> $GITHUB_OUTPUT  
