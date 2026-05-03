@@ -44,7 +44,7 @@ jobs:
           until docker exec testdb pg_isready -U testuser; do sleep 2; done
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: java
           queries: security-extended
@@ -57,7 +57,7 @@ jobs:
           SPRING_DATASOURCE_PASSWORD: testpass
        
       - name: CodeQL — Analyze
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           category: /language:java
       
@@ -82,4 +82,4 @@ jobs:
           push: true
           tags: |
              ${{ env.DOCKER_USER }}/${{ env.ECR_REPOSITORY }}:${{ steps.meta.outputs.image_tag }}
-          echo "IMAGE-TAG: ${{ env.DOCKER_USER }}/${{ env.ECR_REPOSITORY }}:${{ steps.meta.outputs.image_tag }}" >> $GITHUB_OUTPUT  
+          
