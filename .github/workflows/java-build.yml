@@ -78,7 +78,7 @@ jobs:
         with:
           context: ${{ env.SERVICE_DIR }}
           echo "CONTEXT: ${{ env.SERVICE_DIR}}"
-          file: Dockerfile          
+          file: ${{ env.SERVICE_DIR }}/Dockerfile          
           push: true
           tags: |
              ${{ env.DOCKER_USER }}/${{ env.ECR_REPOSITORY }}:${{ steps.meta.outputs.image_tag }}
