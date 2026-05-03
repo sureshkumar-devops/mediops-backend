@@ -14,6 +14,7 @@ env:
   AWS_REGION: "ap-south-1"
   AWS_ACCOUNT_ID: ""
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+  DOCKER_USER: ${{ secrets.DOCKER_USERNAME }}
 
 jobs:
   build-and-push:
@@ -76,8 +77,8 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./Dockerfile
+          file: ./api-gateway/Dockerfile
           push: true
           tags: |
-             ${{ secrets.DOCKER_USERNAME }}/${{ env.ECR_REPOSITORY }}:${{ steps.meta.outputs.image_tag }}
-          echo "IMAGE-TAG: ${{ secrets.DOCKER_USERNAME }}/${{ env.ECR_REPOSITORY }}:${{ steps.meta.outputs.image_tag }}" >> $GITHUB_OUTPUT  
+             ${{ env.DOCKER_USER }}/${{ env.ECR_REPOSITORY }}:${{ steps.meta.outputs.image_tag }}
+          echo "IMAGE-TAG: ${{ env.DOCKER_USER }}/${{ env.ECR_REPOSITORY }}:${{ steps.meta.outputs.image_tag }}" >> $GITHUB_OUTPUT  
