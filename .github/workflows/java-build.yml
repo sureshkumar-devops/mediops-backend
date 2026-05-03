@@ -41,3 +41,27 @@ jobs:
         run: |
           docker run -d --name testdb -e POSTGRES_DB=testdb -e POSTGRES_USER=testuser -e POSTGRES_PASSWORD=testpass -p 5432:5432 postgres:15-alpine
           until docker exec testdb pg_isready -U testuser; do sleep 2; done
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: java
+          queries: security-extended
+
+      - name: maven verify (Tests + JaCoCo 80%)
+        run: cd ${{ env.SERVICE_DIR }} && mvn verify --no-transfer-progress
+        env:
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/testdb
+          SPRING_DATASOURCE_USERNAME: testuser
+          SPRING_DATASOURCE_PASSWORD: testpass
+
+      - name: CodeQL — Analyze
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:java
+ 
+      - name: Semgrep SAST
+        uses: semgrep/semgrep-action@v1
+        continue-on-error: true
+        with:
+          config: p/java p/owasp-top-ten
