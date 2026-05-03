@@ -76,10 +76,10 @@ jobs:
       - name: Build Docker Image
         id: docker-build
         run: |
-          FULL_IMAGE="${{ env.DOCKER_USER }}/${{ env.ECR_REPOSITORY }}:${{ steps.meta.outputs.image_tag }}
+          FULL_IMAGE="${{ env.DOCKER_USER }}/${{ env.ECR_REPOSITORY }}:${{ steps.meta.outputs.image_tag }}"
           cd ${{ env.SERVICE_DIR }}
-          docker build -t "FULL_IMAGE" .
-          echo "image=$FULL_IMAGE" >> GITHUB_OUTPUT
+          docker build -t "$FULL_IMAGE" .
+          echo "image=$FULL_IMAGE" >> $GITHUB_OUTPUT
 
           
           
