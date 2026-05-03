@@ -100,7 +100,8 @@ jobs:
        
       - name: Push Docker Image
         id: push
-        run: |
+        if: github.event_name == 'push'
+        run: |          
           IMAGE="${{ steps.docker-build.outputs.full_image_path }}"
           docker push "$IMAGE"
           DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE" | awk -F@ '{print $2}')
@@ -111,6 +112,7 @@ jobs:
         uses: sigstore/cosign-installer@v3.5.0
       
       - name: Cosign — Sign image (keyless, GitHub OIDC → Fulcio → Rekor)
+        if: github.event_name == 'push'
         run: |
           cosign sign --yes ${{ steps.docker-build.outputs.full_image_path }}
 
