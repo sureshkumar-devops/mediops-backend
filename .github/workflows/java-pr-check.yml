@@ -29,8 +29,8 @@ jobs:
        pull-requests: read
        contents: read
      steps:
-       - name: Code Checkout
-         uses: actions/checkout@4
+       - name: Code Checkout         
+         uses: actions/checkout@v4
          with:
            fetch-depth: 0
            
