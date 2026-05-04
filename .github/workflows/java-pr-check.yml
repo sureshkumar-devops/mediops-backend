@@ -64,6 +64,15 @@ jobs:
          with:
            language: java
            queries: security-extended
+       
+       - name: Maven Verify (Test + Jacoco Coverage)
+         run: cd ${{ env.SERVICE_DIR }} && mvn verify --no-transfer-progress
+         env:
+           SPRING_DATABASE_URL:       ${{ env.NEEDS_DATABASE && 'jdbc:postgresql://localhost:5432/testdb' || '' }}
+           SPRING_DATABASE_USERNAME:  ${{ env.NEEDS_DATABASE && 'testuser' || '' }}           
+           SPRING_DATABASE_PASSWORD:  ${{ env.NEEDS_DATABASE && 'testpass' || '' }}
+           
+           
            
            
              
