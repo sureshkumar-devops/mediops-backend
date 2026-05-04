@@ -34,6 +34,38 @@ jobs:
          with:
            fetch-depth: 0
            
+       - name: SetUp Java 17 temurin
+         uses: actions/setup-java@v4
+         with:
+           java-version: '17'
+           distribution: temurin
+           cache: maven
+        
+       - name: Start POSTGRESQL (Integration Test)
+         if: ${{ env.NEEDS_DATABASE }}
+         run: |
+           docker run -d  \
+             -- name: testdb \
+             -e POSTGRES_DB=testdb \
+             -e POSTGRES_USERNAME=testuser \
+             -e POSTGRES_PASSWORD=testpass \
+             -p 5432:5432 \
+             postgres:15-alpine
+           until docker exec testdb pg_isready  -U testuser 2>/dev/null; do sleep 5; done
+           echo "PostgresSQL ready....!"
+       
+       - name: Initialize CodeQL
+         uses: github/codeql-action/init@v4
+         with:
+           language: java
+           queries: security-extended
+           
+           
+             
+             
+             
+           
+           
            
         
    
