@@ -42,7 +42,7 @@ jobs:
            cache: maven
         
        - name: Start POSTGRESQL (Integration Test)
-         if: ${{ env.NEEDS_DATABASE }}
+         if: ${{ env.NEEDS_DATABASE == 'true' }}
          run: |
            docker run -d  \
              --name testdb \
@@ -66,11 +66,12 @@ jobs:
            queries: security-extended
        
        - name: Maven Verify (Test + Jacoco Coverage)
-         run: cd ${{ env.SERVICE_DIR }} && mvn verify --no-transfer-progress
-         env:
-           SPRING_DATASOURCE_URL:     ${{ env.NEEDS_DATABASE && 'jdbc:postgresql://localhost:5432/testdb' || '' }}
-           SPRING_DATABASE_USERNAME:  ${{ env.NEEDS_DATABASE && 'testuser' || '' }}           
-           SPRING_DATABASE_PASSWORD:  ${{ env.NEEDS_DATABASE && 'testpass' || '' }}
+         run:  mvn verify --no-transfer-progress
+         working-directory: cd ${{ env.SERVICE_DIR }}
+         env:           
+           SPRING_DATASOURCE_URL:       ${{ env.NEEDS_DATABASE == 'true' && 'jdbc:postgresql://localhost:5432/testdb' || '' }}
+           SPRING_DATASOURCE_USERNAME:  ${{ env.NEEDS_DATABASE && 'testuser' || '' }}           
+           SPRING_DATASOURCE_PASSWORD:  ${{ env.NEEDS_DATABASE && 'testpass' || '' }}
        
        - name: Upload JaCocO Coverage Report
          if: always()
@@ -94,6 +95,29 @@ jobs:
              p/owasp-top-ten
          env:
            SEMGREP_APP_TOKEN: ${{ env.SEMGREP_APP_TOKEN }}    
+             
+       - name: OWASP Dependency Check (CVSS >= 7.0 - advisory; non-blocking)
+         if: false
+         continue-on-error: true
+         run: |
+           cd ${{ env.SERVICE_DIR }}
+           mvn org.owasp:dependency-check-maven:check \
+             -DfailBuildOnCVSS=7 \
+             -DenableRetired=true \
+             -DdataDirectory=$HOME/.owasp/dependency-check-data \
+             -Dformat=HTML \
+             --no-transfer-progress
+            
+       - name: Upload Dependency Check Report
+         if: false
+         uses: actions/upload-artifact@v4
+         with:
+           name: depcheck-${{env.SERVICE_NAME}}
+           path: ${{ env.SERVICE_DIR }}/target/dependency-check-report.html
+           retention-days: 3
+           
+           
+           
            
            
            
