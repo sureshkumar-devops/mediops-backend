@@ -96,6 +96,9 @@
           <failOnViolation>false</failOnViolation>
           <logViolationsToConsole>true</logViolationsToConsole>
           <encoding>UTF-8</encoding>
+          <inputEncoding>UTF-8</inputEncoding>
+          <consoleOutput>true</consoleOutput>
+          <failsOnError>true</failsOnError>       
         </configuration>
         <executions>
           <execution>
