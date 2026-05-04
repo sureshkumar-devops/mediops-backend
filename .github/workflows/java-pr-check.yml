@@ -45,15 +45,20 @@ jobs:
          if: ${{ env.NEEDS_DATABASE }}
          run: |
            docker run -d  \
-             -- name: testdb \
+             --name: testdb \
              -e POSTGRES_DB=testdb \
              -e POSTGRES_USERNAME=testuser \
              -e POSTGRES_PASSWORD=testpass \
              -p 5432:5432 \
              postgres:15-alpine
-           until docker exec testdb pg_isready  -U testuser 2>/dev/null; do sleep 5; done
-           echo "PostgresSQL ready....!"
-       
+
+           # Wait for DB to be ready
+           until docker exec testdb pg_isready -U testuser -d testdb; do
+             echo "Waiting for postgres..."
+             sleep 5
+           done
+           echo "PostgresSQL ready....!"           
+                  
        - name: Initialize CodeQL
          uses: github/codeql-action/init@v4
          with:
