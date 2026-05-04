@@ -21,7 +21,7 @@ env:
 
 jobs:
    pr-check:
-     name: PR Check (${{ env.SERVICE_NAME }})
+     name: PR Check api-gateway
      runs-on: ubuntu-latest
      permissions: 
        actions: read
