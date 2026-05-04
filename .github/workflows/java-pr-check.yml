@@ -1,0 +1,51 @@
+name: resuable PR
+on:
+ push:
+   branches:
+     - master
+     - dev
+ pull_request:
+   branches:
+     - dev
+   paths:
+     - 'api-gateway/**'
+env:
+  SERVICE_NAME: "api-gateway"
+  SERVICE_DIR: "./api-gateway"
+  ECR_REPOSITORY: "api-gateway"
+  AWS_REGION: "ap-south-1"
+  AWS_ACCOUNT_ID: ""
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+  DOCKER_USER: ${{ secrets.DOCKER_USERNAME }}
+  NEEDS_DATABASE: true
+
+jobs:
+   pr-check:
+     name: PR Check (${{ env.SERVICE_NAME }})
+     runs-on: ubuntu-latest
+     permissions: 
+       actions: read
+       security-events: write
+       pull-requests: read
+       contents: read
+     steps:
+       - name: Code Checkout
+         uses: actions/checkout@4
+         with:
+           fetch-depth: 0
+           
+           
+        
+   
+   
+   
+   
+
+    
+  
+  
+  
+       
+     
+     
+     
