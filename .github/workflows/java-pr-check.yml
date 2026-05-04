@@ -62,8 +62,7 @@ jobs:
        - name: Initialize CodeQL
          uses: github/codeql-action/init@v4
          with:
-           languages: java
-           build-mode: autobuild 
+           languages: java           
            queries: security-extended
        
        - name: Maven Verify (Test + Jacoco Coverage)
