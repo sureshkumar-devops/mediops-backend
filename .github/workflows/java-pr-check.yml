@@ -15,7 +15,7 @@ env:
   ECR_REPOSITORY: "api-gateway"
   AWS_REGION: "ap-south-1"
   AWS_ACCOUNT_ID: ""
-  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true  
   DOCKER_USER: ${{ secrets.DOCKER_USERNAME }}
   NEEDS_DATABASE: true
 
@@ -62,7 +62,8 @@ jobs:
        - name: Initialize CodeQL
          uses: github/codeql-action/init@v4
          with:
-           language: java
+           languages: java
+           build-mode: autobuild 
            queries: security-extended
        
        - name: Maven Verify (Test + Jacoco Coverage)
@@ -71,6 +72,22 @@ jobs:
            SPRING_DATABASE_URL:       ${{ env.NEEDS_DATABASE && 'jdbc:postgresql://localhost:5432/testdb' || '' }}
            SPRING_DATABASE_USERNAME:  ${{ env.NEEDS_DATABASE && 'testuser' || '' }}           
            SPRING_DATABASE_PASSWORD:  ${{ env.NEEDS_DATABASE && 'testpass' || '' }}
+       
+       - name: Upload JaCocO Coverage Report
+         if: always()
+         uses: actions/upload-artifact@v4
+         with:
+           name: coverage-${{ env.SERVICE_NAME }}
+           path: ${{ env.SERVICE_DIR }}/target/site/jacoco/
+           retention-days: 3
+        
+       - name: CodeQL - Analyze
+         uses: github/codeql-action/analyze@v4
+         with:
+           category: "/language: java"
+           
+           
+           
            
            
            
