@@ -96,7 +96,7 @@ jobs:
            SEMGREP_APP_TOKEN: ${{ env.SEMGREP_APP_TOKEN }}    
              
        - name: OWASP Dependency Check (CVSS >= 7.0 - advisory; non-blocking)
-         if: false
+         if: true
          continue-on-error: true
          run: |
            cd ${{ env.SERVICE_DIR }}
@@ -108,7 +108,7 @@ jobs:
              --no-transfer-progress
             
        - name: Upload Dependency Check Report
-         if: false
+         if: true
          uses: actions/upload-artifact@v4
          with:
            name: depcheck-${{env.SERVICE_NAME}}
