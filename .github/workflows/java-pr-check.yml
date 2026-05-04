@@ -1,4 +1,4 @@
-name: resuable PR
+name: resuable PRs
 on:
  push:
    branches:
