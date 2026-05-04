@@ -45,7 +45,7 @@ jobs:
          if: ${{ env.NEEDS_DATABASE }}
          run: |
            docker run -d  \
-             --name: testdb \
+             --name testdb \
              -e POSTGRES_DB=testdb \
              -e POSTGRES_USERNAME=testuser \
              -e POSTGRES_PASSWORD=testpass \
