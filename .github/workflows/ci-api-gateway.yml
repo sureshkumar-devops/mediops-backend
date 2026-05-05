@@ -1,0 +1,66 @@
+name: CICD - api-gateway
+on: 
+ push: 
+   branches:
+     - develop
+     - release/**
+   paths:
+     - 'api-gateway/**'
+     - '.github/workflows/ci-api-gateway.yml'
+permissions:
+  id-token: write
+  contents: read
+  security-events: write
+  actions: read
+env:
+  AWS_REGION: ap-south-1
+  ECR_REPOSITORY: api-gateway
+  GITOPS_REPO: ${{ vars.GITOPS_REPO }}
+
+jobs:
+  build:
+    name: Code checkout
+    uses: ./.github/workflows/java-build.yml
+    with:
+      service-name: api-gateway
+      service-dir: api-gateway
+      ecr-repository: api-gateway
+      aws-region: ap-south-1
+      needs-database: false
+    secrets: inherit
+    
+  deploy-dev:
+    name: Deploy-DEV
+    needs: build
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - name: Code Checkout
+        uses: actions/checkout@v4
+        
+
+
+
+
+
+
+
+
+
+
+
+
+    
+  
+    
+
+
+
+
+
+
+
+
+    
+    
+  
