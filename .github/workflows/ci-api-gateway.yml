@@ -37,6 +37,11 @@ jobs:
     steps:
       - name: Code Checkout
         uses: actions/checkout@v4
+   
+      - name: GitOps Repo Code Checkout
+        uses: actions/checkout@v4
+
+    
         
 
 
