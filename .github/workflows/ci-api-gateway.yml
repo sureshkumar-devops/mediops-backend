@@ -31,3 +31,20 @@ jobs:
       aws-region: ap-south-1
       needs-database: false
     secrets: inherit
+   
+  # ── 2. Deploy to DEV (direct commit — ArgoCD auto-syncs) ──  
+  deploy-dev:
+    name: Deploy-DEV
+    needs: build
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - name: Code Checkout
+        uses: actions/checkout@v4
+   
+      - name: GitOps Repo Code Checkout
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.GITOPS_REPO }}
+          token: ${{ secrets.GITOPS_MEDICO_TOKEN }}
+          path: _gitops  
