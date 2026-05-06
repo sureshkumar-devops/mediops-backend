@@ -64,5 +64,39 @@ jobs:
           git commit -m "ci(dev): update api-gateway → ${IMAGE_TAG}"
           git push
         
-  # ── 3. Open QA promotion PR in zen-gitops (PR merge = QA deployment) ─────      
-        
+  # ── 3. Open QA promotion PR in zen-gitops (PR merge = QA deployment) ─────     
+      
+  open-qa-pr:
+    name: Open PR - QA Promotion
+    needs: [build, deploy-dev]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code Checkout
+        uses: actions/checkout@v4
+     
+      - name: Checkout Code GitOps
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.GITOPS_REPO }}
+          token: ${{ secrets.GITOPS_MEDICO_TOKEN2 }}
+          path: _gitops
+          
+      - name: create branch, commit, open PR
+        env:
+          GH_TOKEN: ${{ secrets.GITOPS_MEDICO_TOKEN2 }}
+          IMAGE_TAG: ${{ needs.build.outputs.image-tag }}
+          REF_NAME: ${{ github.ref_name }}
+          ACTOR: ${{ github.actor }}
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          GITOPS_REPO_NAME: ${{ env.GITOPS_REPO }}
+        run: |
+          echo "$GH_TOKEN"
+          echo "$IMAGE_TAG"
+          echo "$REF_NAME" 
+          echo "$ACTOR" 
+          echo "$SERVER_URL" 
+          echo "$REPOSITORY_TAG" 
+          echo "$RUN_ID" 
+          echo "$GITOPS_REPO_NAME"   
