@@ -104,8 +104,8 @@ jobs:
        # CodeQL instruments the Maven compilation to collect call-graph data.
            
        - name: 3. Initialize CodeQL
-        uses: github/codeql-action/init@v4
-        with:
+         uses: github/codeql-action/init@v4
+         with:
           languages: java
           queries: security-extended   
        
