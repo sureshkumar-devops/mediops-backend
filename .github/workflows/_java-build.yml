@@ -60,18 +60,18 @@ jobs:
       registry:  ${{ steps.login-ecr.outputs.registry }} 
     
     steps:
-      # ── Checkout ─────────────────────── #
+      # ── Checkout ─────────────────────── 
 
       - name: 1. Code Checkout
         uses: actions/checkout@v4
  
-      # ── Derive short-SHA image tag ──────#
+      # ── Derive short-SHA image tag ──────
       
       - name: Set image Tag
         id: meta
         run: echo "image_tag=sha-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
        
-      # ── Java toolchain ─────────────────#
+      # ── Java toolchain ────────────────
       
       - name: Setup Java 17 (Temurin)
         uses: actions/setup-java@v4
@@ -80,7 +80,7 @@ jobs:
           distribution: temurin
           cache: maven
 
-       # ── Optional PostgreSQL for services that need a DB in tests --#     
+       # ── Optional PostgreSQL for services that need a DB in tests -     
        
        - name: 2. Start POSTGRESQL (Integration Test)
          if: ${{ inputs.needs-database == 'true' }}
@@ -100,7 +100,7 @@ jobs:
            done
            echo "PostgresSQL ready....!"
        
-       # ── Initialize CodeQL tracer BEFORE Maven build ───#
+       # ── Initialize CodeQL tracer BEFORE Maven build ───
        # CodeQL instruments the Maven compilation to collect call-graph data.
            
        - name: 3. Initialize CodeQL
@@ -109,7 +109,7 @@ jobs:
           languages: java
           queries: security-extended   
        
-       # ── Maven verify (compiles, tests, JaCoCo) ───#
+       # ── Maven verify (compiles, tests, JaCoCo) ──
        # mvn verify runs: compile → test → package → verify (JaCoCo coverage check)
        # The pom.xml must configure jacoco-maven-plugin with a minimum 80% line/branch rule.
        
@@ -136,7 +136,7 @@ jobs:
         with:
           category: /language:java
       
-      # ── Semgrep SAST ─────────────────#
+      # ── Semgrep SAST ─────────────────
       
       - name: Semgrep SAST (java · owasp-top-ten)
         uses: semgrep/semgrep-action@v1
