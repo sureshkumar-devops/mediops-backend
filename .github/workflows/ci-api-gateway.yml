@@ -31,7 +31,7 @@ jobs:
     
   # ── 2. Deploy to DEV (direct commit — ArgoCD auto-syncs) ──  
   deploy-dev:
-    name: Deploy-DEV
+    name: Deploy-DEV11
     needs: build
     runs-on: ubuntu-latest
     environment: dev
