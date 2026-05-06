@@ -82,30 +82,30 @@ jobs:
 
        # ── Optional PostgreSQL for services that need a DB in tests -     
        
-       - name: 2. Start POSTGRESQL (Integration Test)
-         if: ${{ inputs.needs-database == 'true' }}
-         run: |
-           docker run -d  \
-             --name testdb \
-             -e POSTGRES_DB=testdb \
-             -e POSTGRES_USER=testuser \
-             -e POSTGRES_PASSWORD=testpass \
-             -p 5432:5432 \
-             postgres:15-alpine
+      - name: 2. Start POSTGRESQL (Integration Test)
+        if: ${{ inputs.needs-database == 'true' }}
+        run: |
+          docker run -d  \
+            --name testdb \
+            -e POSTGRES_DB=testdb \
+            -e POSTGRES_USER=testuser \
+            -e POSTGRES_PASSWORD=testpass \
+            -p 5432:5432 \
+            postgres:15-alpine
             
-           # Wait for DB to be ready
-           until docker exec testdb pg_isready -U testuser -d testdb; do
-             echo "Waiting for postgres..."
-             sleep 5
-           done
-           echo "PostgresSQL ready....!"
+          # Wait for DB to be ready
+          until docker exec testdb pg_isready -U testuser -d testdb; do
+            echo "Waiting for postgres..."
+            sleep 5
+          done
+          echo "PostgresSQL ready....!"
        
        # ── Initialize CodeQL tracer BEFORE Maven build ───
        # CodeQL instruments the Maven compilation to collect call-graph data.
            
-       - name: 3. Initialize CodeQL
-         uses: github/codeql-action/init@v4
-         with:
+      - name: 3. Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
           languages: java
           queries: security-extended   
        
@@ -113,9 +113,9 @@ jobs:
        # mvn verify runs: compile → test → package → verify (JaCoCo coverage check)
        # The pom.xml must configure jacoco-maven-plugin with a minimum 80% line/branch rule.
        
-       - name: 4. Maven verify (tests + JaCoCo coverage gate ≥ 80%)   
-         run: cd ${{ inputs.service-dir }} && mvn verify --no-transfer-progress
-         env:
+      - name: 4. Maven verify (tests + JaCoCo coverage gate ≥ 80%)   
+        run: cd ${{ inputs.service-dir }} && mvn verify --no-transfer-progress
+        env:
           SPRING_DATASOURCE_URL:      ${{ inputs.needs-database && 'jdbc:postgresql://localhost:5432/testdb' || '' }}
           SPRING_DATASOURCE_USERNAME: ${{ inputs.needs-database && 'testuser' || '' }}
           SPRING_DATASOURCE_PASSWORD: ${{ inputs.needs-database && 'testpass' || '' }}
