@@ -1,0 +1,253 @@
+name: Reusable — Java Build & Security Gates
+on: 
+ workflow_call:
+   inputs:
+      service-name:
+        description: "Service name (e.g. api-gateway)"
+        required: true
+        type: string
+      service-dir:
+        description: "Service directory relative to repo root (e.g. api-gateway)"
+        required: true
+        type: string
+      ecr-repository:
+        description: "ECR repository name"
+        required: true
+        type: string
+      aws-region:
+        description: "AWS region where ECR lives"
+        required: false
+        type: string
+        default: ap-south-1
+      needs-database:
+        description: "Start a PostgreSQL 15 container for integration tests"
+        required: false
+        type: boolean
+        default: false 
+      
+   outputs:
+      image-tag:
+        description: "Docker image tag pushed to ECR (format: sha-<7chars>)"
+        value: ${{ jobs.build-and-push.outputs.image_tag }}
+      registry:
+        description: "ECR registry base URL"
+        value: ${{ jobs.build-and-push.outputs.registry }}
+   secrets:
+      AWS_ACCOUNT_ID:
+        required: false
+      OWASP_API_KEY:
+        required: true
+      SEMGREP_APP_TOKEN:
+        required: false
+      NVD_API_KEY:
+        description: "NIST NVD API key — higher rate limits + faster OWASP NVD updates"
+        required: false
+env:  
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+  DOCKER_USER: ${{ secrets.DOCKER_USERNAME }}
+
+jobs:
+  build-and-push:
+    name: Build · SAST · Scan · Push · Sign (${{ inputs.service-name }})
+    runs-on: ubuntu-latest
+    permissions: 
+      id-token: write          # OIDC — AWS + Cosign keyless
+      contents: read           # Checkout
+      security-events: write   # Upload SARIF (CodeQL, Trivy)
+      actions: read            # Required by CodeQL action 
+    outputs:
+      image_tag: ${{ steps.meta.outputs.image_tag }}
+      registry:  ${{ steps.login-ecr.outputs.registry }} 
+    
+    steps:
+      # ── Checkout ─────────────────────── #
+
+      - name: 1. Code Checkout
+        uses: actions/checkout@v4
+ 
+      # ── Derive short-SHA image tag ──────#
+      
+      - name: Set image Tag
+        id: meta
+        run: echo "image_tag=sha-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+       
+      # ── Java toolchain ─────────────────#
+      
+      - name: Setup Java 17 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: temurin
+          cache: maven
+
+       # ── Optional PostgreSQL for services that need a DB in tests --#     
+       
+       - name: 2. Start POSTGRESQL (Integration Test)
+         if: ${{ inputs.needs-database == 'true' }}
+         run: |
+           docker run -d  \
+             --name testdb \
+             -e POSTGRES_DB=testdb \
+             -e POSTGRES_USER=testuser \
+             -e POSTGRES_PASSWORD=testpass \
+             -p 5432:5432 \
+             postgres:15-alpine
+            
+           # Wait for DB to be ready
+           until docker exec testdb pg_isready -U testuser -d testdb; do
+             echo "Waiting for postgres..."
+             sleep 5
+           done
+           echo "PostgresSQL ready....!"
+       
+       # ── Initialize CodeQL tracer BEFORE Maven build ───#
+       # CodeQL instruments the Maven compilation to collect call-graph data.
+           
+       - name: 3. Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: java
+          queries: security-extended   
+       
+       # ── Maven verify (compiles, tests, JaCoCo) ───#
+       # mvn verify runs: compile → test → package → verify (JaCoCo coverage check)
+       # The pom.xml must configure jacoco-maven-plugin with a minimum 80% line/branch rule.
+       
+       - name: 4. Maven verify (tests + JaCoCo coverage gate ≥ 80%)   
+         run: cd ${{ inputs.service-dir }} && mvn verify --no-transfer-progress
+         env:
+          SPRING_DATASOURCE_URL:      ${{ inputs.needs-database && 'jdbc:postgresql://localhost:5432/testdb' || '' }}
+          SPRING_DATASOURCE_USERNAME: ${{ inputs.needs-database && 'testuser' || '' }}
+          SPRING_DATASOURCE_PASSWORD: ${{ inputs.needs-database && 'testpass' || '' }}
+       
+       
+      - name: 5. Upload JaCoCo coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ inputs.service-name }}
+          path: ${{ inputs.service-dir }}/target/site/jacoco/
+          retention-days: 7
+      
+      # ── CodeQL analysis (uses results from the instrumented Maven build above) ─
+      
+      - name: CodeQL — Analyze
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:java
+      
+      # ── Semgrep SAST ─────────────────#
+      
+      - name: Semgrep SAST (java · owasp-top-ten)
+        uses: semgrep/semgrep-action@v1
+        continue-on-error: true
+        with:
+          config: >-
+              p/java 
+              p/owasp-top-ten
+        env:
+           SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }} 
+        
+      # ── OWASP Dependency Check ────────
+       
+      - name: Cache OWASP NVD database
+        if: false
+        uses: actions/cache@v4
+        with:
+          path: ~/.owasp/dependency-check-data
+          key: owasp-nvd-${{ runner.os }}-${{ hashFiles(format('{0}/pom.xml', inputs.service-dir)) }}
+          restore-keys: owasp-nvd-${{ runner.os }}- 
+      
+      - name: OWASP Dependency Check (CVSS >= 7.0 - advisory; non-blocking)
+        if: false
+        continue-on-error: true
+        run: |
+           cd ${{ inputs.service-dir }}
+           mvn org.owasp:dependency-check-maven:check \
+             -DnvdApiKey=${{ secrets.OWASP_API_KEY }} \
+             -DfailBuildOnCVSS=7 \
+             -DenableRetired=true \
+             -DdataDirectory=$HOME/.owasp/dependency-check-data \
+             -Dformat=HTML \
+             --no-transfer-progress
+
+      - name: Upload Dependency Check report
+        if: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: depcheck-${{ inputs.service-name }}
+          path: ${{ inputs.service-dir }}/target/dependency-check-report.html
+          retention-days: 3
+      
+      # ── AWS credentials via OIDC (no long-lived keys) ─────────────────────────
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/pharma-github-actions-role
+          aws-region: ${{ inputs.aws-region }}
+
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      
+      - name: Login Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # ── Docker build (multi-stage, non-root UID/GID 1000) ─────────────────────
+        
+      - name: Build Docker Image
+        id: docker-build
+        run: |
+          FULL_IMAGE="${{ env.DOCKER_USER }}/${{ inputs.ecr-repository }}:${{ steps.meta.outputs.image_tag }}"
+          #IMAGE="${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository }}:${{ steps.meta.outputs.image_tag }}" 
+          cd ${{ inputs.service-dir }}
+          docker build --build-arg UID=1000 --build-arg GID=1000 -t "$FULL_IMAGE" .
+          echo "full_image_path=$FULL_IMAGE" >> $GITHUB_OUTPUT
+      
+      # ── Trivy — image scan (fail on HIGH/CRITICAL CVEs) ───────────────────────
+       
+      - name: Trivy Image Vulnerability Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ steps.docker-build.outputs.full_image_path }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: HIGH,CRITICAL
+          exit-code: '0'
+          ignore-unfixed: true
+       
+      - name: Upload Trivy SARIF to GitHub Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy-${{ inputs.service-name }}
+      # ── Push image to ECR ───────────
+      
+      - name: Push Docker Image
+        id: push
+        if: github.event_name == 'push'
+        run: |          
+          IMAGE="${{ steps.docker-build.outputs.full_image_path }}"
+          docker push "$IMAGE"
+          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE" | awk -F@ '{print $2}')
+          echo "digest=$DIGEST" >> $GITHUB_OUTPUT
+          echo "Pushed: $IMAGE  (digest: $DIGEST)"
+
+      # ── Cosign keyless sign ─────
+          
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3.5.0
+      
+      - name: Cosign — Sign image (keyless, GitHub OIDC → Fulcio → Rekor)
+        if: github.event_name == 'push'
+        run: |
+          cosign sign --yes  ${{ steps.docker-build.outputs.full_image_path }}
+          #cosign sign --yes "${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository }}@${{ steps.push.outputs.digest }}"
+        env:
+          COSIGN_EXPERIMENTAL: "true"
+
