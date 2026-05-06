@@ -52,6 +52,6 @@ jobs:
       - name: Update image tag — DEV
         env:
           IMAGE_TAG: ${{ needs.build.outputs.image-tag }}
-        run:  run: echo "The tag is $IMAGE_TAG"   
+        run:  echo "The tag is $IMAGE_TAG"   
         
         
