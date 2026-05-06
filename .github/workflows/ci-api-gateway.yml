@@ -29,19 +29,6 @@ jobs:
       needs-database: false
     secrets: inherit
     
-  deploy-dev:
-    name: Deploy-DEV2
-    needs: build
-    runs-on: ubuntu-latest
-    environment: dev
-    steps:
-      - name: Code Checkout
-        uses: actions/checkout@v4
-   
-      - name: GitOps Repo Code Checkout
-        uses: actions/checkout@v4
-
-    
         
 
 
