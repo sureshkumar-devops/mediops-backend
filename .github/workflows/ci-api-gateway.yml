@@ -29,8 +29,9 @@ jobs:
       needs-database: false
     secrets: inherit
     
+  # ── 2. Deploy to DEV (direct commit — ArgoCD auto-syncs) ──  
   deploy-dev:
-    name: Deploy-DEV1
+    name: Deploy-DEV
     needs: build
     runs-on: ubuntu-latest
     environment: dev
@@ -40,6 +41,12 @@ jobs:
    
       - name: GitOps Repo Code Checkout
         uses: actions/checkout@v4
+        with:
+          repository: ${{ env.GITOPS_REPO }}
+          token: ${{ secrets.GITOPS_MEDICO_TOKEN }}
+          path: _gitops
+          
+          
 
     
         
