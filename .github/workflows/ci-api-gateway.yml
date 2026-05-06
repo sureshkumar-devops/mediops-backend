@@ -41,10 +41,17 @@ jobs:
     steps:
       - name: Code Checkout
         uses: actions/checkout@v4
-   
+    
       - name: GitOps Repo Code Checkout
         uses: actions/checkout@v4
         with:
           repository: ${{ env.GITOPS_REPO }}
           token: ${{ secrets.GITOPS_MEDICO_TOKEN2 }}
           path: _gitops  
+
+      - name: Update image tag — DEV
+        env:
+          IMAGE_TAG: ${{ needs.build.outputs.image-tag }}
+        run:  run: echo "The tag is $IMAGE_TAG"   
+        
+        
