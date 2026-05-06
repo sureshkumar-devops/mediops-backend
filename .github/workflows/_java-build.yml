@@ -41,6 +41,7 @@ on:
       AWS_ACCOUNT_ID:
         required: false
       OWASP_API_KEY:
+        description: "NVD API key used by OWASP Dependency Check"
         required: true
       SEMGREP_APP_TOKEN:
         required: false
@@ -50,6 +51,10 @@ on:
 env:  
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
   DOCKER_USER: ${{ secrets.DOCKER_USERNAME }}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true  
 
 jobs:
   build-and-push:
@@ -62,7 +67,10 @@ jobs:
       actions: read            # Required by CodeQL action 
     outputs:
       image_tag: ${{ steps.meta.outputs.image_tag }}
-      registry:  ${{ steps.login-ecr.outputs.registry }} 
+      #registry:  ${{ steps.login-ecr.outputs.registry }
+      #registry: ${{ inputs.use-aws && steps.login-ecr.outputs.registry || env.DOCKER_USER }}
+      registry: ${{ steps.login-ecr.outputs.registry || env.DOCKER_USER }}
+      
     
     steps:
       # ── Checkout ─────────────────────── 
@@ -88,7 +96,7 @@ jobs:
        # ── Optional PostgreSQL for services that need a DB in tests -     
        
       - name: 2. Start POSTGRESQL (Integration Test)
-        if: ${{ inputs.needs-database == 'true' }}
+        if: ${{ inputs.needs-database }}
         run: |
           docker run -d  \
             --name testdb \
@@ -98,8 +106,16 @@ jobs:
             -p 5432:5432 \
             postgres:15-alpine
             
-          # Wait for DB to be ready
-          until docker exec testdb pg_isready -U testuser -d testdb; do
+          # # Wait for DB to be ready
+          # until docker exec testdb pg_isready -U testuser -d testdb; do
+          #   echo "Waiting for postgres..."
+          #   sleep 5
+          # done
+
+          for i in {1..20}; do
+            if docker exec testdb pg_isready -U testuser -d testdb; then
+              break
+            fi
             echo "Waiting for postgres..."
             sleep 5
           done
@@ -119,7 +135,8 @@ jobs:
        # The pom.xml must configure jacoco-maven-plugin with a minimum 80% line/branch rule.
        
       - name: 4. Maven verify (tests + JaCoCo coverage gate ≥ 80%)   
-        run: cd ${{ inputs.service-dir }} && mvn verify --no-transfer-progress
+        working-directory: ${{ inputs.service-dir }}
+        run: mvn verify --no-transfer-progress
         env:
           SPRING_DATASOURCE_URL:      ${{ inputs.needs-database && 'jdbc:postgresql://localhost:5432/testdb' || '' }}
           SPRING_DATASOURCE_USERNAME: ${{ inputs.needs-database && 'testuser' || '' }}
@@ -177,7 +194,8 @@ jobs:
              --no-transfer-progress
 
       - name: 10. Upload Dependency Check report
-        if: true
+        # if: true
+        if: always() && hashFiles(format('{0}/target/dependency-check-report.html', inputs.service-dir)) != ''
         uses: actions/upload-artifact@v4
         with:
           name: depcheck-${{ inputs.service-name }}
@@ -186,7 +204,7 @@ jobs:
       
       # ── AWS credentials via OIDC (no long-lived keys) ─────────────────────────
       - name: 11. Configure AWS credentials (OIDC)
-        if: ${{ inputs.use-aws == 'true' }}
+        if: ${{ inputs.use-aws }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/pharma-github-actions-role
@@ -194,21 +212,27 @@ jobs:
 
       - name: 12. Login to Amazon ECR
         id: login-ecr
-        if: ${{ inputs.use-aws == 'true' }}
+        if: ${{ inputs.use-aws  }}
         uses: aws-actions/amazon-ecr-login@v2
       
       - name: 13. Login Docker Hub
+        if: ${{ !inputs.use-aws }}
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       # ── Docker build (multi-stage, non-root UID/GID 1000) ─────────────────────
-        
       - name: 14. Build Docker Image
         id: docker-build
         run: |
-          # Use local tag for Kind, or ECR registry if AWS is enabled
+          # 🔒 Validate Docker username when AWS is NOT used
+          if [ -z "${{ env.DOCKER_USER }}" ] && [ "${{ inputs.use-aws }}" != "true" ]; then
+            echo "DOCKER_USERNAME is required when not using AWS"
+            exit 1
+          fi
+
+          # Decide registry
           if [ "${{ inputs.use-aws }}" = "true" ]; then
             REGISTRY="${{ steps.login-ecr.outputs.registry }}"
           else
@@ -216,21 +240,28 @@ jobs:
           fi
 
           FULL_IMAGE="$REGISTRY/${{ inputs.ecr-repository }}:${{ steps.meta.outputs.image_tag }}"          
-          
+    
           cd ${{ inputs.service-dir }}
-          docker build --build-arg UID=1000 --build-arg GID=1000 -t "$FULL_IMAGE" .
-          echo "full_image_path=$FULL_IMAGE" >> $GITHUB_OUTPUT
+    
+          docker build \
+            --build-arg UID=1000 \
+            --build-arg GID=1000 \
+            --label org.opencontainers.image.source=${{ github.repository }} \
+            --label org.opencontainers.image.revision=${{ github.sha }} \
+            -t "$FULL_IMAGE" .
+
+          echo "full_image_path=$FULL_IMAGE" >> $GITHUB_OUTPUT     
       
       # ── Trivy — image scan (fail on HIGH/CRITICAL CVEs) ───────────────────────
        
       - name: 15. Trivy Image Vulnerability Scan
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.20.0
         with:
           image-ref: ${{ steps.docker-build.outputs.full_image_path }}
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: HIGH,CRITICAL
-          exit-code: '0'
+          exit-code: '1'
           ignore-unfixed: true
        
       - name: 16. Upload Trivy SARIF to GitHub Security tab
@@ -258,9 +289,27 @@ jobs:
       
       - name: 19. Cosign — Sign image (keyless, GitHub OIDC → Fulcio → Rekor)
         if: github.event_name == 'push'
-        run: |
-          cosign sign --yes  ${{ steps.docker-build.outputs.full_image_path }}
-          #cosign sign --yes "${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository }}@${{ steps.push.outputs.digest }}"
+        run: |          
+          if [ "${{ inputs.use-aws }}" = "true" ]; then
+             IMAGE="${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository }}"
+          else
+             IMAGE="${{ env.DOCKER_USER }}/${{ inputs.ecr-repository }}"
+          fi
+     
+          DIGEST="${{ steps.push.outputs.digest }}"
+
+          if [ -z "$DIGEST" ]; then
+            echo "No digest found, skipping signing"
+            exit 0
+          fi
+
+          cosign sign --yes "${IMAGE}@${DIGEST}"
+
         env:
           COSIGN_EXPERIMENTAL: "true"
+
+      - name: Cleanup Postgres
+        if: ${{ inputs.needs-database }}
+        run: docker rm -f testdb || true    
+
 
