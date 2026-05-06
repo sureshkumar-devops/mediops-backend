@@ -1,4 +1,4 @@
-name: CICD - api-gateway2
+name: CICD - api-gateway3
 on: 
  push: 
    branches:
