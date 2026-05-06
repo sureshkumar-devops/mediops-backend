@@ -30,7 +30,7 @@ jobs:
     secrets: inherit
     
   deploy-dev:
-    name: Deploy-DEV
+    name: Deploy-DEV1
     needs: build
     runs-on: ubuntu-latest
     environment: dev
