@@ -91,37 +91,35 @@ jobs:
           REPOSITORY: ${{ github.repository }}
           RUN_ID: ${{ github.run_id }}
           GITOPS_REPO_NAME: ${{ env.GITOPS_REPO }}
-        run: |          
-          echo "$GH_TOKEN"
-          echo "$IMAGE_TAG"
-          echo "$REF_NAME" 
-          echo "$ACTOR" 
-          echo "$SERVER_URL" 
-          echo "$REPOSITORY" 
-          echo "$RUN_ID" 
-          echo "$GITOPS_REPO_NAME" 
-          
+        run: | 
+        
           VALUES="_gitops/envs/qa/values-api-gateway.yaml"
           BRANCH="promote/qa/api-gateway/${IMAGE_TAG}"
 
-          if [[ ! -f "VALUES" ]]; then
+          if [[ ! -f "$VALUES" ]]; then          
             echo "::Warning::$VALUES not found in mediops-gitops - QA PR Skipped."
             exit 0
           fi
 
           cd _gitops
           git checkout -b "$BRANCH"
-          yq e ".image.tag = \"${IMAGE_TAG}\"" -i "envs/qa/values-api-gateway.yaml"
+
+          # Update the tag
+          yq e ".image.tag = \"${IMAGE_TAG}\"" -i "envs/qa/values-api-gateway.yaml"                    
+                    
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add .
+          
           if git diff --staged --quiet; then
             echo "QA already has this image - no PR needed"
             exit 0
           fi
+          
           git commit -m "promote(qa): api-gateway → ${IMAGE_TAG}"
           git push origin "$BRANCH"
-          
+
+          # Create the PR body text
           printf '%s\n' \
             "## QA Promotion" \
             "" \
@@ -140,10 +138,11 @@ jobs:
             "ArgoCD (pharma-qa) auto-syncs on merge." > /tmp/pr-body.md 
 
           gh pr create \
-            --repo "$GITOPS_REPO_NAME"
+            --repo "$GITOPS_REPO_NAME" \
             --title "promotion(qa): api-gateway → ${IMAGE_TAG}" \
             --body-file /tmp/pr-body.md \
             --head "$BRANCH"
+            --base master
 
           echo "::Notice Title=QA PR Opened::Review and Merge in ${GITOPS_REPO_NAME} to deploy to QA."
           
