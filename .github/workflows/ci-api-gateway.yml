@@ -123,18 +123,33 @@ jobs:
           git push origin "$BRANCH"
           
           printf '%s\n' \
-          "## QA Promotion" \
-          "" \
-          "Service : api-gateway" \
-          "Image   : ${IMAGE_TAG}" \
-          "Branch  : ${REF_NAME}" \
-          "Actor   : ${ACTOR}" \
-          "Build   : ${SERVER_URL}/${REPOSITORY}/actions/runs/${RUN_ID}" \
-          "" \
-          "## Checklist" \
-          "- [ ] DEV smoke test passed (see build link above)" \
-          "- [ ] No unexpected config changes in this diff" \
-          "- [ ] QA team sign-off" \
-          "" \
-          "Merging this PR updates envs/qa/values-api-gateway.yaml." \
-          "ArgoCD (pharma-qa) auto-syncs on merge." > /tmp/pr-body.md 
+            "## QA Promotion" \
+            "" \
+            "Service : api-gateway" \
+            "Image   : ${IMAGE_TAG}" \
+            "Branch  : ${REF_NAME}" \
+            "Actor   : ${ACTOR}" \
+            "Build   : ${SERVER_URL}/${REPOSITORY}/actions/runs/${RUN_ID}" \
+            "" \
+            "## Checklist" \
+            "- [ ] DEV smoke test passed (see build link above)" \
+            "- [ ] No unexpected config changes in this diff" \
+            "- [ ] QA team sign-off" \
+            "" \
+            "Merging this PR updates envs/qa/values-api-gateway.yaml." \
+            "ArgoCD (pharma-qa) auto-syncs on merge." > /tmp/pr-body.md 
+
+          gh pr create \
+            --repo "$GITOPS_REPO_NAME"
+            --title "promotion(qa): api-gateway → ${IMAGE_TAG}" \
+            --body-file /tmp/pr-body.md \
+            --head "$BRANCH"
+
+          echo "::Notice Title=QA PR Opened::Review and Merge in ${GITOPS_REPO_NAME} to deploy to QA."
+          
+            
+            
+          
+             
+            
+          
