@@ -154,7 +154,7 @@ jobs:
     steps:
       - name: wait for DEV service to be healthy
         run: |
-          URL="${{ var.DEV_API_GATEWAY_URL }}/actuator/health"
+          URL="${{ vars.DEV_API_GATEWAY_URL }}/actuator/health"
           for i in $(seq 1 20); do
             curl -sf "$URL" && echo "Healthy" && exit 0
             echo "Attempt $i/20 - retrying in 15s..."
