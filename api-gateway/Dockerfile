@@ -1,4 +1,4 @@
-#------------ STAGE: 1 BUILD ------------
+#------------ STAGE: 1 BUILD -------------
 #FROM maven:3.9.9-eclipse-temurin-17 AS builder
 
 #WORKDIR /app
