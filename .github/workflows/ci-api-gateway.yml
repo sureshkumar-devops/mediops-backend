@@ -1,4 +1,4 @@
-name: CICD - api-gateway
+name: CICD - api-gateway7
 on: 
  push: 
    branches:
@@ -6,20 +6,23 @@ on:
      - release/**
    paths:
      - 'api-gateway/**'
-     - '.github/workflows/ci-api-gateway.yml'
+     - '.github/workflows/ci-api-gateway.yml'  
+     
 permissions:
   id-token: write
   contents: read
   security-events: write
   actions: read
+  
 env:
   AWS_REGION: ap-south-1
   ECR_REPOSITORY: api-gateway
   GITOPS_REPO: ${{ vars.GITOPS_REPO }}
 
 jobs:
+
   build:
-    name: Code checkout
+    name: Build & Security - Gates    
     uses: ./.github/workflows/_java-build.yml
     with:
       service-name: api-gateway
@@ -28,51 +31,148 @@ jobs:
       aws-region: ap-south-1
       needs-database: false
     secrets: inherit
-    
+   
   # ── 2. Deploy to DEV (direct commit — ArgoCD auto-syncs) ──  
   deploy-dev:
-    name: Deploy-DEV11
+    name: Deploy-DEV
     needs: build
     runs-on: ubuntu-latest
     environment: dev
     steps:
       - name: Code Checkout
         uses: actions/checkout@v4
-   
+    
       - name: GitOps Repo Code Checkout
         uses: actions/checkout@v4
         with:
           repository: ${{ env.GITOPS_REPO }}
-          token: ${{ secrets.GITOPS_MEDICO_TOKEN }}
+          token: ${{ secrets.GITOPS_MEDICO_TOKEN2 }}
+          path: _gitops  
+
+      - name: Update image tag — DEV
+        env:
+          IMAGE_TAG: ${{ needs.build.outputs.image-tag }}
+        run: |
+          echo "The tag is $IMAGE_TAG"   
+          yq e ".image.tag = \"${IMAGE_TAG}\"" -i \
+            "_gitops/envs/dev/values-api-gateway.yaml"
+          cd _gitops
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git diff --staged --quiet && echo "Already up to date" && exit 0
+          git commit -m "ci(dev): update api-gateway → ${IMAGE_TAG}"
+          git push
+        
+  # ── 3. Open QA promotion PR in zen-gitops (PR merge = QA deployment) ─────     
+      
+  open-qa-pr:
+    name: Open PR - QA Promotion
+    needs: [build, deploy-dev]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code Checkout
+        uses: actions/checkout@v4
+     
+      - name: Checkout Code GitOps
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.GITOPS_REPO }}
+          token: ${{ secrets.GITOPS_MEDICO_TOKEN2 }}
           path: _gitops
           
-          
-
-    
+      - name: create branch, commit, open PR
+        env:
+          GH_TOKEN: ${{ secrets.GITOPS_MEDICO_TOKEN2 }}
+          IMAGE_TAG: ${{ needs.build.outputs.image-tag }}
+          REF_NAME: ${{ github.ref_name }}
+          ACTOR: ${{ github.actor }}
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          GITOPS_REPO_NAME: ${{ env.GITOPS_REPO }}
+        run: | 
         
+          VALUES="_gitops/envs/qa/values-api-gateway.yaml"
+          BRANCH="promote/qa/api-gateway/${IMAGE_TAG}"
 
+          if [[ ! -f "$VALUES" ]]; then          
+            echo "::Warning::$VALUES not found in mediops-gitops - QA PR Skipped."
+            exit 0
+          fi
 
+          cd _gitops
+          git checkout -b "$BRANCH"
 
+          # Update the tag
+          yq e ".image.tag = \"${IMAGE_TAG}\"" -i "envs/qa/values-api-gateway.yaml"                    
+                    
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          
+          if git diff --staged --quiet; then
+            echo "QA already has this image - no PR needed"
+            exit 0
+          fi
+          
+          git commit -m "promote(qa): api-gateway → ${IMAGE_TAG}"
+          git push origin "$BRANCH"
 
-
-
-
-
-
-
-
-
-    
-  
-    
-
-
-
-
-
-
-
-
-    
-    
-  
+          # Create the PR body text
+          printf '%s\n' \
+            "## QA Promotion" \
+            "" \
+            "Service : api-gateway" \
+            "Image   : ${IMAGE_TAG}" \
+            "Branch  : ${REF_NAME}" \
+            "Actor   : ${ACTOR}" \
+            "Build   : ${SERVER_URL}/${REPOSITORY}/actions/runs/${RUN_ID}" \
+            "" \
+            "## Checklist" \
+            "- [ ] DEV smoke test passed (see build link above)" \
+            "- [ ] No unexpected config changes in this diff" \
+            "- [ ] QA team sign-off" \
+            "" \
+            "Merging this PR updates envs/qa/values-api-gateway.yaml." \
+            "ArgoCD (pharma-qa) auto-syncs on merge." > /tmp/pr-body.md 
+         
+          gh pr create \
+            --repo "$GITOPS_REPO_NAME" \
+            --title "promotion(qa): api-gateway → ${IMAGE_TAG}" \
+            --body-file /tmp/pr-body.md \
+            --head "$BRANCH"
+            --base master
+           
+          echo "::Notice Title=QA PR Opened::Review and Merge in ${GITOPS_REPO_NAME} to deploy to QA."
+         
+  dast:
+    name: DAST - ZAP Baseline (DEV)
+    if: false
+    needs: deploy-dev
+    runs-on: ubuntu
+    steps:
+      - name: wait for DEV service to be healthy
+        run: |
+          URL="${{ vars.DEV_API_GATEWAY_URL }}/actuator/health"
+          for i in $(seq 1 20); do
+            curl -sf "$URL" && echo "Healthy" && exit 0
+            echo "Attempt $i/20 - retrying in 15s..."
+            sleep 15
+          done
+          echo "::error::DEV endpoint not healthy after 5 minutes"
+          exit 1
+      
+      - name: OWASP ZAP - Baseline Scan
+        uses: zaproxy/action-baseline@v0.12.0
+        with:
+          target: ${{ vars.DEV_API_GATEWAY_URL }}
+          fail_action: warn
+          artifact_name: zap-report-api-gateway
+      
+         
+          
+             
+            
+          
+         
