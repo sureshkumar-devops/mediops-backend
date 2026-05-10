@@ -1,0 +1,120 @@
+name: Resuable - Java PR Check (no Docker)
+on: 
+  workflow_call:
+    inputs:
+      service-name:
+        type: string
+        required: true
+      service-dir:
+        type: string
+        required: true
+      needs-database:
+        type: boolean
+        required: false
+        default: false
+    secrets:
+      SEMGREP_APP_TOKEN:
+        required: false
+      OWASP_API_KEY:
+        required: false
+
+jobs:
+  pr-check:
+    name: PR Check (${{ inputs.service-name }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      security-events: write
+      actions: read
+    
+    steps:
+      - name: Code CheckOut
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+ 
+      - name: Setup Java 17 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: temurin
+          cache: maven
+
+      - name: Start PostgreSQL (intergration tests)
+        if: ${{ inputs.needs-database }}
+        run: |
+          docker run -d \
+            --name testdb \
+            -e POSTGRES_DB=testdb \
+            -e POSTGRES_USER=testuser \
+            -e POSTGRES_PASSWORD=testpass \
+            -p 5432:5432 \
+            postgres:15-alpine
+          
+          # wait for DB to be ready
+          until docker exec testdb pg_isready -U testuser -d testdb; do
+            echo "waiting for postgres..."
+            sleep 2
+          done
+          echo "PostgreSQL read..!!!"
+        
+      - name: Iniltialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: java
+          queries: security-extended
+          
+      - name: Maven verify (test + jaCoCO coverage)
+        run: cd ${{ inputs.service-dir }} && mvn verify --no-transfer-progress
+        env:
+          SPRING_DATASOURCE_URL: ${{ inputs.needs-database && 'jdbc:postgresql://localhost:5432/testdb' || '' }}
+          SPRING_DATASOURCE_USERNAME: ${{ inputs.needs-database && 'testuser' || '' }}
+          SPRING_DATASOURCE_PASSWORD: ${{ inputs.needs-database && 'testpass' || '' }}
+       
+      - name: Upload JaCoCO Coverage Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ inputs.service-name }}
+          path: ${{ inputs.service-dir }}/target/site/jacoco/
+          retention-days: 3
+       
+      - name: CodeQL - Analyze
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: '/language: java'
+         
+      - name: Semgrep SAST (java - owasp-top-ten)
+        uses: semgrep/semgrep-action@v1
+        continue-on-error: true
+        with:
+          config: >-
+            p/java
+            p/owasp-top-ten
+        env:
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+          
+      - name: Cache OWASP NVD database
+        if: false
+        continue-on-error: true
+        run: |
+          cd ${{ inputs.service-dir }}
+          mvn org.owasp:dependency-check-maven:check \
+            -DfailBuildOnCVSS=7 \
+            -DenableRetired=true \
+            -DnvdApiKey=${{ secrets.OWASP_API_KEY }} \
+            -DnvdApiDelay=1000 \
+            -DdataDirectory=$HOME/.owasp/dependency-check-data \
+            -Dformat=HTML \
+            --no-transfer-progress
+           
+      - name: Upload Dependency Check Report
+        if: false
+        #if: always()
+        uses: actions/upload-artifact@v4
+        with:
+           name: depcheck-${{ inputs.service-name }}
+           path: ${{ inputs.service-dir }}/target/dependency-check-report.html
+           retention-days: 3
+           
