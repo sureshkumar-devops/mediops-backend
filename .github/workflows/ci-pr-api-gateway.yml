@@ -1,4 +1,4 @@
-name: PR Check - api-gateway2
+name: PR Check - api-gateway3
 on:
   push:
     branches:
