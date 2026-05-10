@@ -70,6 +70,9 @@ jobs:
     name: Open PR - QA Promotion
     needs: [build, deploy-dev]
     runs-on: ubuntu-latest
+    permissions: 
+      contents: write
+      pull-requests: write
     steps:
       - name: Code Checkout
         uses: actions/checkout@v4
@@ -102,7 +105,7 @@ jobs:
           fi
 
           cd _gitops
-          git checkout -b "$BRANCH"
+          git checkout -b "$BRANCH" || git checkout "$BRANCH"
 
           # Update the tag
           yq e ".image.tag = \"${IMAGE_TAG}\"" -i "envs/qa/values-api-gateway.yaml"                    
@@ -117,7 +120,7 @@ jobs:
           fi
           
           git commit -m "promote(qa): api-gateway → ${IMAGE_TAG}"
-          git push origin "$BRANCH"
+          git push origin "$BRANCH" --force
 
           # Create the PR body text
           printf '%s\n' \
@@ -141,8 +144,8 @@ jobs:
             --repo "$GITOPS_REPO_NAME" \
             --title "promotion(qa): api-gateway → ${IMAGE_TAG}" \
             --body-file /tmp/pr-body.md \
-            --head "$BRANCH"
-            --base master
+            --head "$BRANCH" \
+            --base master || echo "PR already exists"
            
           echo "::Notice Title=QA PR Opened::Review and Merge in ${GITOPS_REPO_NAME} to deploy to QA."
          
