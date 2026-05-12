@@ -4,7 +4,7 @@ on:
     branches:
       - 'develop'
       - 'release/**'
-    path:
+    paths:
       - 'auth-service/**'
       - '.github/workflows/ci-auth-service.yml'
 permissions:
@@ -48,7 +48,7 @@ jobs:
         env:
          IMAGE_TAG: ${{ needs.build.outputs.image-tag }}         
         run: |
-          yq e ".image.tag=\"${IMAGE_TAG}"\"  -i \
+          yq e ".image.tag=\"${IMAGE_TAG}\"  -i \
            "_gitops/envs/dev/values-auth-service.yaml"
           cd _gitops
           git config user.name "github-actions[bot]"
@@ -86,10 +86,7 @@ jobs:
           REPOSITORY: ${{ github.repository }}
           RUN_ID: ${{ github.run_id }}
           GITOPS_REPO_NAME: ${{ env.GITOPS_REPO }}
-        run: |
-          echo "$REF_NAME"
-          echo "$ACTOR"
-          echo "$RUN_ID"
+        run: |         
           VALUES="_gitops/envs/qa/values-auth-service.yaml"
           BRANCH="promote/qa/auth-service/${IMAGE_TAG}"
              
@@ -102,7 +99,7 @@ jobs:
           git checkout -b "$BRANCH" || git checkout "$BRANCH"
 
           # Update the tag
-          yq e ".image.tag = \"${IMAGE_TAG}"\" -i "envs/qa/values-auth-service.yaml"
+          yq e ".image.tag = \"${IMAGE_TAG}\" -i "envs/qa/values-auth-service.yaml"
 
            git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -144,5 +141,29 @@ jobs:
           echo "::Notice Title=QA PR Opened::Review and Merge in ${GITOPS_REPO_NAME} to deploy to QA."
           
           
+         # ── 4. DAST — ZAP baseline scan against DEV ─────────────────────────────────
         
-        
+  dast:
+    name: DAST - ZAP Baseline - (DEV)
+    if: false
+    needs: deploy-dev
+    runs-on: ubuntu-latest
+    steps:
+      - name: wait for DEV service to be healthy
+        run: |
+          URL="${{ vars.DEV_AUTH_SERVICE_URL }}/actuator/health"
+          for i in $(seq 1 20); do
+            curl -sf "$URL" && echo "Healthy" && exit 0
+            echo "Attempt $i/20 — retrying in 15s..."
+            sleep 15
+          done
+          echo "::error::DEV endpoint not healthy after 5 minutes"
+          exit 1
+          
+      - name: OWASP ZAP — Baseline scan        
+        uses: zaproxy/action-baseline@v0.12.0
+        with:
+          target: ${{ vars.DEV_AUTH_SERVICE_URL }}
+          fail_action: warn
+          artifact_name: zap-report-auth-service
+    
