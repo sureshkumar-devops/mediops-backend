@@ -46,7 +46,7 @@ jobs:
 
       - name: Update Image Tag - DEV
         env:
-         IMAGE_TAG= ${{ needs.build.outputs.image-tag }}
+         IMAGE_TAG: ${{ needs.build.outputs.image-tag }}         
         run: |
           yq e ".image.tag=\"${IMAGE_TAG}"\"  -i \
            "_gitops/envs/dev/values-auth-service.yaml"
@@ -57,5 +57,40 @@ jobs:
           git diff --staged --quiet && echo "Already upto date" && exit 0
           git commit -m "ci(dev): Update auth-service → ${IMAGE_TAG}"
           git push
+
+   open-qa-pr:
+    name: Open PR - QA Promotion
+    needs: [build, deploy-dev]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Code Checkout
+        uses: actions/checkout@v4
+      
+      - name: Checkout Code GitOps
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.GITOPS_REPO }}
+          token: ${{ secrets.GITOPS_MEDICO_TOKEN2 }}
+          path: _gitops
+
+      - name: create branch, commit, open PR
+        env:
+          GH_TOKEN: ${{ secrets.GITOPS_MEDICO_TOKEN2 }}
+          IMAGE_TAG: ${{ needs.build.outputs.image-tag }}
+          REF_NAME: ${{ github.ref_name }}
+          ACTOR: ${{ github.actor }}
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          GITOPS_REPO_NAME: ${{ env.GITOPS_REPO }}
+        run: |
+          echo "$REF_NAME"
+          echo "$ACTOR"
+          echo "$RUN_ID"
+          
+          
         
         
