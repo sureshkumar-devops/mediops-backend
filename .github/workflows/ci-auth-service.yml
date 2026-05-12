@@ -57,8 +57,8 @@ jobs:
           git diff --staged --quiet && echo "Already upto date" && exit 0
           git commit -m "ci(dev): Update auth-service → ${IMAGE_TAG}"
           git push
-
-   open-qa-pr:
+     
+  open-qa-pr:
     name: Open PR - QA Promotion
     needs: [build, deploy-dev]
     runs-on: ubuntu-latest
