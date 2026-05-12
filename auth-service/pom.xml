@@ -121,7 +121,7 @@
         <artifactId>maven-checkstyle-plugin</artifactId>
         <version>3.3.1</version>
         <configuration>
-          <configLocation>checkstyle.xml</configLocation>
+          <configLocation>${project.basedir}/checkstyle.xml</configLocation>          
           <failOnViolation>false</failOnViolation>
           <logViolationsToConsole>true</logViolationsToConsole>
           <encoding>UTF-8</encoding>
