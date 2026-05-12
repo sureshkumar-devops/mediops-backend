@@ -1,0 +1,45 @@
+name: CICD - auth-service
+on:
+  push:
+    branches:
+      - 'develop'
+      - 'release/**'
+    path:
+      - 'auth-service/**'
+      - '.github/workflows/ci-auth-service.yml'
+permissions:
+  contents: read
+  id-token: write
+  security-events: write
+  actions: read
+env:
+  AWS_REGION: ap-south-1
+  ECR_REPOSITORY: auth-service
+  GITOPS_REPO: ${{ vars.GITOPS_REPO }}
+jobs:
+  build:
+    name: Build & Security Gates
+    uses: ./.github/workflows/_java-build.yml
+    with:
+      service-name: auth-service
+      service-dir: auth-service
+      ecr-repository: auth-service
+      aws-region: ap-south-1
+      needs-database: true
+    secrets: inherit
+
+  deploy-dev:
+    name: Deploy - DEV
+    needs: build
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - name: Code Checkout
+        uses: actions/checkout@v4
+       
+      - name: Checkout Gitops Repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.GITOPS_REPO }}      
+          token: ${{ secrets.GITOPS_MEDICO_TOKEN2 }}
+          path: _gitops
