@@ -1,17 +1,17 @@
-#------------ STAGE: 1 BUILD ------------
-FROM maven:3.9.9-eclipse-temurin-17 AS builder
+# #------------ STAGE: 1 BUILD ------------
+# FROM maven:3.9.9-eclipse-temurin-17 AS builder
 
-WORKDIR /app
+# WORKDIR /app
 
-# Copy the pom.xml first (for caching dependencies)
-COPY pom.xml .
-RUN mvn dependency:go-offline
+# # Copy the pom.xml first (for caching dependencies)
+# COPY pom.xml .
+# RUN mvn dependency:go-offline
 
-# Copy the source code
-COPY src ./src
+# # Copy the source code
+# COPY src ./src
 
-# Build the application (.Jar)
-RUN mvn clean package -DskipTests
+# # Build the application (.Jar)
+# RUN mvn clean package -DskipTests
 
 #------------ STAGE: 2 RUNTIME ------------
     
