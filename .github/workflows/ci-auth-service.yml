@@ -48,7 +48,7 @@ jobs:
         env:
          IMAGE_TAG: ${{ needs.build.outputs.image-tag }}         
         run: |
-          yq e ".image.tag=\"${IMAGE_TAG}\"  -i \
+          yq e ".image.tag=\"${IMAGE_TAG}\""  -i \
            "_gitops/envs/dev/values-auth-service.yaml"
           cd _gitops
           git config user.name "github-actions[bot]"
@@ -99,7 +99,7 @@ jobs:
           git checkout -b "$BRANCH" || git checkout "$BRANCH"
 
           # Update the tag
-          yq e ".image.tag = \"${IMAGE_TAG}\" -i "envs/qa/values-auth-service.yaml"
+          yq e ".image.tag = \"${IMAGE_TAG}\"" -i "envs/qa/values-auth-service.yaml"
 
            git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
