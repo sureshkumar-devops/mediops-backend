@@ -157,7 +157,7 @@ jobs:
             echo "Attempt $i/20 — retrying in 15s..."
             sleep 15
           done
-          echo "::error::DEV endpoint not healthy after 5 minutes"
+          echo "::error::DEV endpoint not healthy after 5 minutes."
           exit 1
           
       - name: OWASP ZAP — Baseline scan        
