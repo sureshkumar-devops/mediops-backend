@@ -44,7 +44,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ${{ env.GITOPS_REPO }}
-          token: ${{ secrets.GITOPS_TOKEN }}
+          token: ${{ secrets.GITOPS_MEDICO_TOKEN2 }}
           path: _gitops
 
       - name: Update image tag — DEV
@@ -74,12 +74,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ${{ env.GITOPS_REPO }}
-          token: ${{ secrets.GITOPS_TOKEN }}
+          token: ${{ secrets.GITOPS_MEDICO_TOKEN2 }}
           path: _gitops
 
       - name: Create branch, commit, open PR
         env:
-          GH_TOKEN: ${{ secrets.GITOPS_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITOPS_MEDICO_TOKEN2 }}
           IMAGE_TAG: ${{ needs.build.outputs.image-tag }}
           SVC: ${{ env.GITOPS_SERVICE_NAME }}
           REF_NAME: ${{ github.ref_name }}
@@ -137,8 +137,6 @@ jobs:
           echo "::notice title=QA PR opened::Review and merge in ${GITOPS_REPO_NAME} to deploy to QA."
 
   # ── 4. DAST — ZAP baseline scan against DEV ─────────────────────────────────
-  # Disabled. Enable by removing `if: false` once DEV_DRUG_CATALOG_URL is set in
-  # GitHub repository variables (Settings → Secrets and variables → Variables).
   dast:
     name: DAST — ZAP Baseline (DEV)
     if: false
