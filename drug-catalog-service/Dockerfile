@@ -22,7 +22,8 @@ WORKDIR /app
 # Create a non-root user and switch to it
 RUN addgroup -S pharma && adduser -S pharma -G pharma
 # Copy the built .jar from the builder stage
-COPY --from=builder /app/target/drug-catalog-service-*.jar app.jar
+#COPY --from=builder /app/target/drug-catalog-service-*.jar app.jar
+COPY target/*.jar app.jar
 
 # Set permissions for the non-root user
 RUN chown -R pharma:pharma /app
@@ -34,7 +35,10 @@ USER pharma
 EXPOSE 8082
 
 # Run the application
-ENTRYPOINT ["java", "-jar", "-Djava.security.egd=file:/dev/./urandom", "/app/app.jar"]
+ENTRYPOINT ["java", "-jar", "-Djava.security.egd=file:/dev/./urandom", "app.jar"]   
+
+
+
 
 
 
