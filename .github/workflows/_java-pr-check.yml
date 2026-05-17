@@ -1,3 +1,16 @@
+# Reusable — Lightweight Java PR / Feature Branch Check
+#
+# Used by ci-pr-<service>.yml workflows on feat-*, fix-*, chore-* branches and PRs.
+# Intentionally stops before Docker — no image build, no ECR push, no Cosign.
+# Goal: fast feedback (~5 min) for developers without burning ECR storage or runner time.
+#
+# Stages:
+#   1. Maven verify  — unit/integration tests + JaCoCo coverage
+#   2. CodeQL        — Java security-extended SAST
+#   3. Semgrep       — java · owasp-top-ten · spring-boot rules
+#   4. OWASP Dep Chk — CVSS ≥ 7.0 reported (non-blocking; add NVD_API_KEY for faster NVD sync)
+
+
 name: Resuable - Java PR Check (no Docker)
 on: 
   workflow_call:

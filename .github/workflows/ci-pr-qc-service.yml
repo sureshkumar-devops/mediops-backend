@@ -1,4 +1,4 @@
-name: PR Check - api-gateway
+name: PR Check - qc-service 
 on:
   push:
     branches:
@@ -6,14 +6,14 @@ on:
       - fix-*
       - chore-*
     paths:
-      - 'api-gateway/**'
-      - '.github/workflows/ci-pr-api-gateway.yml'
+      - 'qc-service/**'
+      - '.github/workflows/ci-pr-qc-service.yml'
 
   pull_request:
     branches:
       - develop
     paths:
-      - 'api-gateway/**'
+      - 'qc-service/**'
 
 permissions:
   contents: read
@@ -26,8 +26,7 @@ jobs:
     name: Code CheckOut
     uses: ./.github/workflows/_java-pr-check.yml
     with:
-      service-name: api-gateway
-      service-dir: api-gateway
+      service-name: qc-service
+      service-dir: qc-service
       needs-database: false
     secrets: inherit
-    
