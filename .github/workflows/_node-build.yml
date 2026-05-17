@@ -118,7 +118,9 @@ jobs:
 
       # ── Lint ──────────────────────────────────────────────────────────────────
       - name: ESLint (--max-warnings 0)
-        run: cd ${{ inputs.service-dir }} && npx eslint src/ --ext .js,.ts --max-warnings 0
+        run: cd ${{ inputs.service-dir }} && npx eslint src/  --max-warnings 0
+        env: 	
+           ESLINT_USE_FLAT_CONFIG: false 
 
       # ── Initialize CodeQL tracer BEFORE npm test ──────────────────────────────
       - name: Initialize CodeQL
