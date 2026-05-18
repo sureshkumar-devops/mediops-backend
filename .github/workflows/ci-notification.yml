@@ -2,7 +2,7 @@
 # Feature branches and PRs → ci-pr-notification.yml
 # PROD promotion → promote-prod.yml (workflow_dispatch)
 
-name: CICD - Notification Service1
+name: CICD - Notification Service2
 on:
   push:
     branches: [ develop, 'release/**' ]    
