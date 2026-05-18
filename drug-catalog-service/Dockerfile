@@ -19,7 +19,7 @@ FROM eclipse-temurin:17-jdk-alpine
 
 WORKDIR /app
 
-# Create a non-root user and switch to it
+# Create a non-root user and switch to it !!!
 RUN addgroup -S pharma && adduser -S pharma -G pharma
 # Copy the built .jar from the builder stage
 #COPY --from=builder /app/target/drug-catalog-service-*.jar app.jar
