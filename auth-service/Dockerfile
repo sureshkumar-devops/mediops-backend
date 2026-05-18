@@ -20,7 +20,7 @@ WORKDIR /app
 
 RUN addgroup -S pharma && adduser -S pharma -G pharma
 
-#COPY --from=builder /app/target/auth-service-*.jar app.jar !!!
+#COPY --from=builder /app/target/auth-service-*.jar app.jar !!! -> pr auth
 COPY target/auth-service-*.jar app.jar
 
 RUN chown -R pharma:pharma /app
