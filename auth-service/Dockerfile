@@ -14,7 +14,8 @@
 
 #--------------- STAGE: 2 RUNTIME -------------
 
-FROM eclipse-temurin:17-jdk-alpine
+#FROM eclipse-temurin:17-jdk-alpine
+FROM ghcr.io/adoptium/temurin:17-jdk-alpine
 
 WORKDIR /app
 
