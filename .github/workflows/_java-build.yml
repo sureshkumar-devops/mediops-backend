@@ -212,17 +212,24 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       # ─────────────────────────────────────────────
-      # Docker Buildx
+      # Buildx
       # ─────────────────────────────────────────────
 
       - name: 13. Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       # ─────────────────────────────────────────────
-      # Docker Cache
+      # Create Cache Directory
       # ─────────────────────────────────────────────
 
-      - name: 14. Cache Docker Layers
+      - name: 14. Create Buildx Cache Directory
+        run: mkdir -p /tmp/.buildx-cache
+
+      # ─────────────────────────────────────────────
+      # Cache Docker Layers
+      # ─────────────────────────────────────────────
+
+      - name: 15. Cache Docker Layers
         uses: actions/cache@v4
         with:
           path: /tmp/.buildx-cache
@@ -231,14 +238,15 @@ jobs:
             ${{ runner.os }}-buildx-
 
       # ─────────────────────────────────────────────
-      # Docker Build
+      # Build Docker Image
       # ─────────────────────────────────────────────
 
-      - name: 15. Build Docker Image
+      - name: 16. Build Docker Image
         id: docker-build
         uses: docker/build-push-action@v6
         with:
           context: ${{ inputs.service-dir }}
+          load: true
           push: false
 
           tags: |
@@ -259,7 +267,7 @@ jobs:
       # Move Cache
       # ─────────────────────────────────────────────
 
-      - name: 16. Move Docker Cache
+      - name: 17. Move Docker Cache
         run: |
           rm -rf /tmp/.buildx-cache
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache
@@ -268,7 +276,7 @@ jobs:
       # Trivy Scan
       # ─────────────────────────────────────────────
 
-      - name: 17. Trivy Scan
+      - name: 18. Trivy Scan
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ inputs.use-aws && format('{0}/{1}:{2}', steps.login-ecr.outputs.registry, inputs.ecr-repository, steps.meta.outputs.image_tag) || format('{0}/{1}:{2}', env.DOCKER_USER, inputs.ecr-repository, steps.meta.outputs.image_tag) }}
@@ -278,7 +286,7 @@ jobs:
           exit-code: "0"
           ignore-unfixed: true
 
-      - name: 18. Upload Trivy SARIF
+      - name: 19. Upload Trivy SARIF
         if: always()
         uses: github/codeql-action/upload-sarif@v4
         with:
@@ -289,7 +297,7 @@ jobs:
       # Push Docker Image
       # ─────────────────────────────────────────────
 
-      - name: 19. Push Docker Image
+      - name: 20. Push Docker Image
         id: push
         if: github.event_name == 'push'
         run: |
@@ -310,10 +318,10 @@ jobs:
       # Cosign
       # ─────────────────────────────────────────────
 
-      - name: 20. Install Cosign
+      - name: 21. Install Cosign
         uses: sigstore/cosign-installer@v3.5.0
 
-      - name: 21. Sign Image
+      - name: 22. Sign Image
         if: github.event_name == 'push'
         run: |
 
@@ -339,6 +347,6 @@ jobs:
       # Cleanup
       # ─────────────────────────────────────────────
 
-      - name: 22. Cleanup PostgreSQL
+      - name: 23. Cleanup PostgreSQL
         if: ${{ inputs.needs-database }}
         run: docker rm -f testdb || true
