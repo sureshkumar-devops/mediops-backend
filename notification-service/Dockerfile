@@ -22,7 +22,7 @@ COPY . .
 #-----------------------------------------------------------------------
 FROM node:20-alpine AS runner
 
-# Set the working directory for the production environment
+# Set the working directory for the production environment..
 WORKDIR /app
 
 # Create a system group and a non-root system user for security
