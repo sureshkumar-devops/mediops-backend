@@ -5,10 +5,17 @@
 #RUN mvn dependency:go-offline
 #COPY src ./src
 #RUN mvn clean package -DskipTests
+------------------------------
+#FROM maven:3.9.9-amazoncorretto-17-alpine AS builder
+#WORKDIR /build
+#COPY pom.xml .
+#COPY src ./src
+#RUN mvn clean package -DskipTests
 #--------------- STAGE: 2 RUNTIME -------------
 
 #FROM eclipse-temurin:17-jdk-alpine.
-FROM ghcr.io/adoptium/temurin:17-jdk-alpine
+#FROM ghcr.io/adoptium/temurin:17-jdk-alpine
+FROM amazoncorretto:17-alpine
 
 WORKDIR /app
 
