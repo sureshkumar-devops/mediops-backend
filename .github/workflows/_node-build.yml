@@ -113,12 +113,17 @@ jobs:
           cache: npm
           cache-dependency-path: ${{ inputs.service-dir }}/package-lock.json
 
+      # Add "npm install --save-dev globals" right after npm ci 
+
       - name: Install dependencies
-        run: cd ${{ inputs.service-dir }} && npm ci
+        run: |
+          cd ${{ inputs.service-dir }} 
+          npm ci
+          npm install --save-dev globals
 
       # ── Lint ──────────────────────────────────────────────────────────────────
       - name: ESLint (--max-warnings 0)
-        run: cd ${{ inputs.service-dir }} && npx eslint src/ --ext .js,.ts --max-warnings 0
+        run: cd ${{ inputs.service-dir }} && npx eslint src/ --max-warnings 0
          
 
       # ── Initialize CodeQL tracer BEFORE npm test ──────────────────────────────
