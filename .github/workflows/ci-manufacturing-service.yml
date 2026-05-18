@@ -136,7 +136,7 @@ jobs:
             --repo "$GITOPS_REPO_NAME" \
             --title "promote(qa): manufacturing-service → ${IMAGE_TAG}" \
             --body-file /tmp/pr-body.md \
-            --base main \
+            --base mater \
             --head "$BRANCH_NAME"
 
             echo "::notice title=QA PR opened::Review and merge in ${GITOPS_REPO_NAME} to deploy to QA."
