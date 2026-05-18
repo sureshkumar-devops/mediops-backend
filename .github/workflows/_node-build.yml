@@ -118,7 +118,7 @@ jobs:
       - name: Install dependencies
         run: |
           cd ${{ inputs.service-dir }} 
-          npm ci          
+          npm install          
           npm install --save-dev globals @eslint/js eslint
 
       # ── Lint ──────────────────────────────────────────────────────────────────
