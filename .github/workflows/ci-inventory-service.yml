@@ -87,7 +87,7 @@ jobs:
             GITOPS_REPO_NAME: ${{ env.GITOPS_REPO }}
         run: |
           VALUES="_gitops/envs/qa/values-inventory-service.yaml"
-          BRANCH="promote/qa/inventory-service/${IMAGE_TAG}"
+          BRANCH_NAME="promote/qa/inventory-service/${IMAGE_TAG}"
           
           if [[ ! -f "$VALUES" ]]; then
             echo "::warning::$VALUES not found — QA PR skipped."
@@ -95,7 +95,7 @@ jobs:
           fi
 
           cd _gitops
-          git checkout -b "$BRANCH" || git checkout "$BRANCH"
+          git checkout -b "$BRANCH_NAME" || git checkout "$BRANCH_NAME"
           yq e ".image.tag = \"${IMAGE_TAG}\"" -i "envs/qa/values-inventory-service.yaml"
 
           git config user.name  "github-actions[bot]"
@@ -108,7 +108,7 @@ jobs:
           fi
 
           git commit -m "promote(qa): inventory-service → ${IMAGE_TAG}"
-          git push origin "$BRANCH"
+          git push origin "$BRANCH_NAME"
 
           printf '%s\n' \
             "## QA Promotion" \
@@ -131,8 +131,8 @@ jobs:
             --repo "$GITOPS_REPO_NAME" \
             --title "promote(qa): inventory-service → ${IMAGE_TAG}" \
             --body-file /tmp/pr-body.md \
-            --base main \
-            --head "$BRANCH"
+            --base master \
+            --head "$BRANCH_NAME"
 
           echo "::notice title=QA PR opened::Review and merge in ${GITOPS_REPO_NAME} to deploy to QA."
  
