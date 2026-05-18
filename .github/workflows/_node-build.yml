@@ -118,13 +118,12 @@ jobs:
       - name: Install dependencies
         run: |
           cd ${{ inputs.service-dir }} 
-          npm ci
-          npm install --save-dev globals
+          npm ci          
+          npm install --save-dev globals @eslint/js eslint
 
       # ── Lint ──────────────────────────────────────────────────────────────────
       - name: ESLint (--max-warnings 0)
-        run: cd ${{ inputs.service-dir }} && npx eslint src/ --max-warnings 0
-         
+        run: cd ${{ inputs.service-dir }} && npx eslint src/ --max-warnings 0         
 
       # ── Initialize CodeQL tracer BEFORE npm test ──────────────────────────────
       - name: Initialize CodeQL
