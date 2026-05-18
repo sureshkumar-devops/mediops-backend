@@ -7,7 +7,9 @@ const logger = require('./utils/logger');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-collectDefaultMetrics({ prefix: 'notification_service_' });
+if (process.env.NODE_ENV !== 'test') {
+  collectDefaultMetrics({ prefix: 'notification_service_' });
+} 
 
 app.use(express.json());
 
@@ -35,8 +37,10 @@ app.use((err, req, res, _next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-app.listen(PORT, () => {
-  logger.info(`Notification service running on port ${PORT}`);
-});
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, () => {
+    logger.info(`Notification service running on port ${PORT}`);
+  });
+}
 
 module.exports = app;

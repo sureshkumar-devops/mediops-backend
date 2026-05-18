@@ -1,82 +1,88 @@
-name: CICD - auth-service
+name: CI/CD — supplier-service
+
+# Triggers on push to develop / release branches only.
+# Feature branches and PRs → ci-pr-supplier-service.yml
+# PROD promotion → promote-prod.yml (workflow_dispatch)
 on:
   push:
-    branches:
-      - 'develop'
-      - 'release/**'
+    branches: [ develop, 'release/**' ]    
     paths:
-      - 'auth-service/**'
-      - '.github/workflows/ci-auth-service.yml'
+        - 'supplier-service/**'
+        - '.github/workflows/ci-supplier-service.yml'
+
 permissions:
   contents: read
   id-token: write
-  security-events: write
   actions: read
+  security-events: write
+
 env:
   AWS_REGION: ap-south-1
-  ECR_REPOSITORY: auth-service
+  ECR_REPOSITORY: supplier-service
   GITOPS_REPO: ${{ vars.GITOPS_REPO }}  
+
 jobs:
   build:
     name: Build & Security Gates
     uses: ./.github/workflows/_java-build.yml
     with:
-      service-name: auth-service
-      service-dir: auth-service
-      ecr-repository: auth-service
-      aws-region: ap-south-1
-      needs-database: true
+      service-name: supplier-service
+      service-dir: supplier-service   
+      ecr-repository: supplier-service  
+      aws-region: ap-south-1  
+      needs-database: true  
     secrets: inherit
-
-  deploy-dev:
+    
+  deploy-dev:    
     name: Deploy - DEV
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest  
     environment: dev
     steps:
-      - name: Code Checkout
-        uses: actions/checkout@v4
-       
-      - name: Checkout Gitops Repo
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ env.GITOPS_REPO }}      
-          token: ${{ secrets.GITOPS_MEDICO_TOKEN2 }}
-          path: _gitops
-
-      - name: Update Image Tag - DEV
-        env:
-         IMAGE_TAG: ${{ needs.build.outputs.image-tag }}         
-        run: |
-          yq e ".image.tag=\"${IMAGE_TAG}\""  -i \
-           "_gitops/envs/dev/values-auth-service.yaml"
-          cd _gitops
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .
-          git diff --staged --quiet && echo "Already upto date" && exit 0
-          git commit -m "ci(dev): Update auth-service → ${IMAGE_TAG}"
-          git push
-     
+        - name: Code Checkout   
+          uses: actions/checkout@v4  
+        
+        - name: Checkout GitOps repo
+          uses: actions/checkout@v4
+          with:
+            repository: ${{ env.GITOPS_REPO }}
+            token: ${{ secrets.GITOPS_MEDICO_TOKEN2 }}  
+            path: _gitops
+        
+        - name: Update image tag - DEV
+          env:
+            IMAGE_TAG: ${{ needs.build.outputs.image-tag }}
+          run: |
+              yq e ".image.tag = \"${IMAGE_TAG}\"" -i \
+                  "_gitops/envs/dev/values-supplier-service.yaml"
+                  
+              cd _gitops
+              git config user.name "github-actions[bot]"
+              git config user.email "github-actions[bot]@users.noreply.github.com"
+              git add .
+              git diff --staged --quiet && echo "Already up to date" && exit 0
+              git commit -m "ci(dev): update supplier-service → ${IMAGE_TAG}"
+              git push
+              
   open-qa-pr:
-    name: Open PR - QA Promotion
+    name: Open PR — DEV → QA Promotion
     needs: [build, deploy-dev]
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      pull-requests: write
+      pull-requests: write      
     steps:
       - name: Code Checkout
         uses: actions/checkout@v4
-      
-      - name: Checkout Code GitOps
+
+      - name: Checkout GitOps repo
         uses: actions/checkout@v4
         with:
           repository: ${{ env.GITOPS_REPO }}
-          token: ${{ secrets.GITOPS_MEDICO_TOKEN2 }}
+          token: ${{ secrets.GITOPS_MEDICO_TOKEN2 }}            
           path: _gitops
 
-      - name: create branch, commit, open PR
+      - name: Create branch, commit, open PR
         env:
           GH_TOKEN: ${{ secrets.GITOPS_MEDICO_TOKEN2 }}
           IMAGE_TAG: ${{ needs.build.outputs.image-tag }}
@@ -86,22 +92,23 @@ jobs:
           REPOSITORY: ${{ github.repository }}
           RUN_ID: ${{ github.run_id }}
           GITOPS_REPO_NAME: ${{ env.GITOPS_REPO }}
-        run: |         
-          VALUES="_gitops/envs/qa/values-auth-service.yaml"
-          BRANCH="promote/qa/auth-service/${IMAGE_TAG}"
-             
+
+        run: |
+          VALUES="_gitops/envs/qa/values-supplier-service.yaml"
+          BRANCH="promote/qa/supplier-service/${IMAGE_TAG}"
+
           if [[ ! -f "$VALUES" ]]; then
             echo "::Warning::$VALUES not found in mediops-gitops -QA PR Skipped"
             exit 0
           fi
- 
+
           cd _gitops
           git checkout -b "$BRANCH" || git checkout "$BRANCH"
 
           # Update the tag
-          yq e ".image.tag = \"${IMAGE_TAG}\"" -i "envs/qa/values-auth-service.yaml"
+          yq e ".image.tag = \"${IMAGE_TAG}\"" -i "envs/qa/values-supplier-service.yaml"
 
-           git config user.name "github-actions[bot]"
+          git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add .
           
@@ -110,14 +117,14 @@ jobs:
             exit 0
           fi
           
-          git commit -m "promote(qa): auth-service → ${IMAGE_TAG}"
+          git commit -m "promote(qa): supplier-service → ${IMAGE_TAG}"
           git push origin "$BRANCH" --force
 
           # Create the PR body text
           printf '%s\n' \
             "## QA Promotion" \
             "" \
-            "Service : auth-service" \
+            "Service : supplier-service" \
             "Image   : ${IMAGE_TAG}" \
             "Branch  : ${REF_NAME}" \
             "Actor   : ${ACTOR}" \
@@ -128,30 +135,27 @@ jobs:
             "- [ ] No unexpected config changes in this diff" \
             "- [ ] QA team sign-off" \
             "" \
-            "Merging this PR updates envs/qa/values-auth-service.yaml." \
+            "Merging this PR updates envs/qa/values-supplier-service.yaml." \
             "ArgoCD (pharma-qa) auto-syncs on merge." > /tmp/pr-body.md 
          
           gh pr create \
             --repo "$GITOPS_REPO_NAME" \
-            --title "promotion(qa): auth-service → ${IMAGE_TAG}" \
+            --title "promotion(qa): supplier-service → ${IMAGE_TAG}" \
             --body-file /tmp/pr-body.md \
             --head "$BRANCH" \
             --base master || echo "PR already exists"
            
           echo "::Notice Title=QA PR Opened::Review and Merge in ${GITOPS_REPO_NAME} to deploy to QA."
-          
-          
-         # ── 4. DAST — ZAP baseline scan against DEV ─────────────────────────────────
-        
+   # ── 4. DAST — ZAP baseline scan against DEV ─────────────────────────────────
   dast:
-    name: DAST - ZAP Baseline - (DEV)
+    name: DAST — ZAP Baseline (DEV)
     if: false
     needs: deploy-dev
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest    
     steps:
       - name: wait for DEV service to be healthy
         run: |
-          URL="${{ vars.DEV_AUTH_SERVICE_URL }}/actuator/health"
+          URL="${{ vars.DEV_SUPPLIER_SERVICE_URL }}/actuator/health"
           for i in $(seq 1 20); do
             curl -sf "$URL" && echo "Healthy" && exit 0
             echo "Attempt $i/20 — retrying in 15s..."
@@ -163,7 +167,12 @@ jobs:
       - name: OWASP ZAP — Baseline scan        
         uses: zaproxy/action-baseline@v0.12.0
         with:
-          target: ${{ vars.DEV_AUTH_SERVICE_URL }}
+          target: ${{ vars.DEV_SUPPLIER_SERVICE_URL }}
           fail_action: warn
-          artifact_name: zap-report-auth-service
+          artifact_name: zap-report-supplier-service
     
+
+
+
+
+

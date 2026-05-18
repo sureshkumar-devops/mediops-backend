@@ -1,4 +1,4 @@
-name: PR Check - api-gateway
+name: PR Check — drug-catalog-service
 on:
   push:
     branches:
@@ -6,14 +6,14 @@ on:
       - fix-*
       - chore-*
     paths:
-      - 'api-gateway/**'
-      - '.github/workflows/ci-pr-api-gateway.yml'
+      - 'drug-catalog-service/**'
+      - '.github/workflows/ci-pr-drug-catalog.yml'
 
   pull_request:
     branches:
       - develop
     paths:
-      - 'api-gateway/**'
+      - 'drug-catalog-service/**'
 
 permissions:
   contents: read
@@ -26,8 +26,7 @@ jobs:
     name: Code CheckOut
     uses: ./.github/workflows/_java-pr-check.yml
     with:
-      service-name: api-gateway
-      service-dir: api-gateway
-      needs-database: false
+      service-name: drug-catalog-service
+      service-dir: drug-catalog-service
+      needs-database: true
     secrets: inherit
-    

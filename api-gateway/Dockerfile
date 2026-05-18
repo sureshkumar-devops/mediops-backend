@@ -1,4 +1,5 @@
-#------------ STAGE: 1 BUILD -------------=
+#------------ STAGE: 1 BUILD -------------
+
 #FROM maven:3.9.9-eclipse-temurin-17 AS builder
 
 #WORKDIR /app
@@ -20,7 +21,7 @@ FROM eclipse-temurin:17-jre-alpine
 
 WORKDIR /app
 
-# Create a non-root user and switch to it
+# Create a non-root user and switch to it !!!->pr check
 RUN addgroup -S pharma && adduser -S pharma -G pharma
 
 # Copy the built .jar from the builder stage
