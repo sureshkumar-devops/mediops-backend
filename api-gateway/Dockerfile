@@ -21,7 +21,7 @@ FROM eclipse-temurin:17-jre-alpine
 
 WORKDIR /app
 
-# Create a non-root user and switch to it !!!
+# Create a non-root user and switch to it !!!->pr check
 RUN addgroup -S pharma && adduser -S pharma -G pharma
 
 # Copy the built .jar from the builder stage
