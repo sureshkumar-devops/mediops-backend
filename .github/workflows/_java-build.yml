@@ -1,304 +1,312 @@
 name: Reusable — Java Build & Security Gates
-on: 
- workflow_call:
-   inputs:
+
+on:
+  workflow_call:
+    inputs:
       service-name:
         description: "Service name (e.g. api-gateway)"
         required: true
         type: string
+
       service-dir:
-        description: "Service directory relative to repo root (e.g. api-gateway)"
+        description: "Service directory relative to repo root"
         required: true
         type: string
+
       ecr-repository:
         description: "ECR repository name"
         required: true
         type: string
+
       aws-region:
         description: "AWS region where ECR lives"
         required: false
         type: string
         default: ap-south-1
+
       needs-database:
-        description: "Start a PostgreSQL 15 container for integration tests"
+        description: "Start PostgreSQL for integration tests"
         required: false
         type: boolean
-        default: false 
+        default: false
+
       use-aws:
-        description: "Use AWS resources (ECR, OIDC, Cosign keyless signing)"
+        description: "Use AWS ECR + OIDC"
         required: false
         type: boolean
-        default: false  
-      
-   outputs:
+        default: false
+
+    outputs:
       image-tag:
-        description: "Docker image tag pushed to ECR (format: sha-<7chars>)"
+        description: "Docker image tag"
         value: ${{ jobs.build-and-push.outputs.image_tag }}
+
       registry:
-        description: "ECR registry base URL"
+        description: "Container registry"
         value: ${{ jobs.build-and-push.outputs.registry }}
-   secrets:
+
+    secrets:
       AWS_ACCOUNT_ID:
         required: false
+
       OWASP_API_KEY:
-        description: "NVD API key used by OWASP Dependency Check"
         required: true
+
       SEMGREP_APP_TOKEN:
         required: false
+
       NVD_API_KEY:
-        description: "NIST NVD API key — higher rate limits + faster OWASP NVD updates"
         required: false
-env:  
+
+env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
   DOCKER_USER: ${{ secrets.DOCKER_USERNAME }}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true  
+  cancel-in-progress: true
 
 jobs:
   build-and-push:
-    name: Build · SAST · Scan · Push · Sign (${{ inputs.service-name }})
+    name: Build · SAST · Scan · Push · Sign
     runs-on: ubuntu-latest
-    permissions: 
-      id-token: write          # OIDC — AWS + Cosign keyless
-      contents: read           # Checkout
-      security-events: write   # Upload SARIF (CodeQL, Trivy)
-      actions: read            # Required by CodeQL action 
+
+    permissions:
+      id-token: write
+      contents: read
+      security-events: write
+      actions: read
+
     outputs:
       image_tag: ${{ steps.meta.outputs.image_tag }}
-      #registry:  ${{ steps.login-ecr.outputs.registry }
-      #registry: ${{ inputs.use-aws && steps.login-ecr.outputs.registry || env.DOCKER_USER }}
       registry: ${{ steps.login-ecr.outputs.registry || env.DOCKER_USER }}
-      
-    
-    steps:
-      # ── Checkout ─────────────────────── 
 
-      - name: 1. Code Checkout
+    steps:
+
+      # ─────────────────────────────────────────────
+      # Checkout
+      # ─────────────────────────────────────────────
+
+      - name: 1. Checkout
         uses: actions/checkout@v4
- 
-      # ── Derive short-SHA image tag ──────
-      
-      - name: Set image Tag
+
+      # ─────────────────────────────────────────────
+      # Image Tag
+      # ─────────────────────────────────────────────
+
+      - name: 2. Set Image Tag
         id: meta
         run: echo "image_tag=sha-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
-       
-      # ── Java toolchain ────────────────
-      
-      - name: Setup Java 17 (Temurin)
+
+      # ─────────────────────────────────────────────
+      # Java Setup
+      # ─────────────────────────────────────────────
+
+      - name: 3. Setup Java 17
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
-          distribution: temurin
+          java-version: "17"
+          distribution: "temurin"
           cache: maven
 
-       # ── Optional PostgreSQL for services that need a DB in tests -     
-       
-      - name: 2. Start POSTGRESQL (Integration Test)
+      # ─────────────────────────────────────────────
+      # PostgreSQL
+      # ─────────────────────────────────────────────
+
+      - name: 4. Start PostgreSQL
         if: ${{ inputs.needs-database }}
         run: |
-          docker run -d  \
+          docker run -d \
             --name testdb \
             -e POSTGRES_DB=testdb \
             -e POSTGRES_USER=testuser \
             -e POSTGRES_PASSWORD=testpass \
             -p 5432:5432 \
             postgres:15-alpine
-            
-          # # Wait for DB to be ready
-          # until docker exec testdb pg_isready -U testuser -d testdb; do
-          #   echo "Waiting for postgres..."
-          #   sleep 5
-          # done
 
           for i in {1..20}; do
             if docker exec testdb pg_isready -U testuser -d testdb; then
               break
             fi
+
             echo "Waiting for postgres..."
             sleep 5
           done
-          echo "PostgresSQL ready....!"
-       
-       # ── Initialize CodeQL tracer BEFORE Maven build ───
-       # CodeQL instruments the Maven compilation to collect call-graph data.
-           
-      - name: 3. Initialize CodeQL
+
+          echo "PostgreSQL Ready"
+
+      # ─────────────────────────────────────────────
+      # CodeQL
+      # ─────────────────────────────────────────────
+
+      - name: 5. Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:
           languages: java
-          queries: security-extended   
-       
-       # ── Maven verify (compiles, tests, JaCoCo) ──
-       # mvn verify runs: compile → test → package → verify (JaCoCo coverage check)
-       # The pom.xml must configure jacoco-maven-plugin with a minimum 80% line/branch rule.
-       
-      - name: 4. Maven verify (tests + JaCoCo coverage gate ≥ 80%)   
+          queries: security-extended
+
+      # ─────────────────────────────────────────────
+      # Maven Build
+      # ─────────────────────────────────────────────
+
+      - name: 6. Maven Verify
         working-directory: ${{ inputs.service-dir }}
         run: mvn verify --no-transfer-progress
         env:
-          SPRING_DATASOURCE_URL:      ${{ inputs.needs-database && 'jdbc:postgresql://localhost:5432/testdb' || '' }}
+          SPRING_DATASOURCE_URL: ${{ inputs.needs-database && 'jdbc:postgresql://localhost:5432/testdb' || '' }}
           SPRING_DATASOURCE_USERNAME: ${{ inputs.needs-database && 'testuser' || '' }}
-          SPRING_DATASOURCE_PASSWORD: ${{ inputs.needs-database && 'testpass' || '' }}       
-       
-      - name: 5. Upload JaCoCo coverage report
+          SPRING_DATASOURCE_PASSWORD: ${{ inputs.needs-database && 'testpass' || '' }}
+
+      - name: 7. Upload JaCoCo Report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: coverage-${{ inputs.service-name }}
           path: ${{ inputs.service-dir }}/target/site/jacoco/
           retention-days: 7
-      
-      # ── CodeQL analysis (uses results from the instrumented Maven build above) ─
-      
-      - name: 6. CodeQL — Analyze
+
+      - name: 8. Analyze CodeQL
         uses: github/codeql-action/analyze@v4
         with:
           category: /language:java
-      
-      # ── Semgrep SAST ─────────────────
-      
-      - name: 7. Semgrep SAST (java · owasp-top-ten)
+
+      # ─────────────────────────────────────────────
+      # Semgrep
+      # ─────────────────────────────────────────────
+
+      - name: 9. Semgrep Scan
         uses: semgrep/semgrep-action@v1
         continue-on-error: true
         with:
-          config: >-
-              p/java 
-              p/owasp-top-ten
+          config: |
+            p/java
+            p/owasp-top-ten
         env:
-           SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }} 
-        
-      # ── OWASP Dependency Check ────────
-       
-      - name: 8. Cache OWASP NVD database
-        if: false
-        uses: actions/cache@v4
-        with:
-          path: ~/.owasp/dependency-check-data
-          key: owasp-nvd-${{ runner.os }}-${{ hashFiles(format('{0}/pom.xml', inputs.service-dir)) }}
-          restore-keys: owasp-nvd-${{ runner.os }}- 
-      
-      - name: 9. OWASP Dependency Check (CVSS >= 7.0 - advisory; non-blocking)
-        if: false
-        continue-on-error: true
-        run: |
-           cd ${{ inputs.service-dir }}
-           mvn org.owasp:dependency-check-maven:check \
-             -DnvdApiKey=${{ secrets.OWASP_API_KEY }} \
-             -DfailBuildOnCVSS=7 \
-             -DenableRetired=true \
-             -DdataDirectory=$HOME/.owasp/dependency-check-data \
-             -Dformat=HTML \
-             --no-transfer-progress
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
 
-      - name: 10. Upload Dependency Check report
-        # if: true
-        if: always() && hashFiles(format('{0}/target/dependency-check-report.html', inputs.service-dir)) != ''
-        uses: actions/upload-artifact@v4
-        with:
-          name: depcheck-${{ inputs.service-name }}
-          path: ${{ inputs.service-dir }}/target/dependency-check-report.html
-          retention-days: 3
-      
-      # ── AWS credentials via OIDC (no long-lived keys) ─────────────────────────
-      - name: 11. Configure AWS credentials (OIDC)
+      # ─────────────────────────────────────────────
+      # AWS Login
+      # ─────────────────────────────────────────────
+
+      - name: 10. Configure AWS Credentials
         if: ${{ inputs.use-aws }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/pharma-github-actions-role
           aws-region: ${{ inputs.aws-region }}
 
-      - name: 12. Login to Amazon ECR
+      - name: 11. Login Amazon ECR
         id: login-ecr
-        if: ${{ inputs.use-aws  }}
+        if: ${{ inputs.use-aws }}
         uses: aws-actions/amazon-ecr-login@v2
-      
-      - name: 13. Login Docker Hub
+
+      # ─────────────────────────────────────────────
+      # DockerHub Login
+      # ─────────────────────────────────────────────
+
+      - name: 12. Login DockerHub
         if: ${{ !inputs.use-aws }}
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # ── Docker build (multi-stage, non-root UID/GID 1000) ─────────────────────
+      # ─────────────────────────────────────────────
+      # Setup Buildx
+      # ─────────────────────────────────────────────
+
+      - name: 13. Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # ─────────────────────────────────────────────
+      # Build Docker Image
+      # ─────────────────────────────────────────────
+
       - name: 14. Build Docker Image
         id: docker-build
-        run: |
-          # 🔒 Validate Docker username when AWS is NOT used
-          if [ -z "${{ env.DOCKER_USER }}" ] && [ "${{ inputs.use-aws }}" != "true" ]; then
-            echo "DOCKER_USERNAME is required when not using AWS"
-            exit 1
-          fi
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ inputs.service-dir }}
+          load: true
+          push: false
 
-          # Decide registry
-          if [ "${{ inputs.use-aws }}" = "true" ]; then
-            REGISTRY="${{ steps.login-ecr.outputs.registry }}"
-          else
-            REGISTRY="${{ env.DOCKER_USER }}"
-          fi
+          tags: |
+            ${{ inputs.use-aws && format('{0}/{1}:{2}', steps.login-ecr.outputs.registry, inputs.ecr-repository, steps.meta.outputs.image_tag) || format('{0}/{1}:{2}', env.DOCKER_USER, inputs.ecr-repository, steps.meta.outputs.image_tag) }}
 
-          FULL_IMAGE="$REGISTRY/${{ inputs.ecr-repository }}:${{ steps.meta.outputs.image_tag }}"          
-    
-          cd ${{ inputs.service-dir }}
-    
-          docker build \
-            --build-arg UID=1000 \
-            --build-arg GID=1000 \
-            --label org.opencontainers.image.source=${{ github.repository }} \
-            --label org.opencontainers.image.revision=${{ github.sha }} \
-            -t "$FULL_IMAGE" .
+          build-args: |
+            UID=1000
+            GID=1000
 
-          echo "full_image_path=$FULL_IMAGE" >> $GITHUB_OUTPUT     
-      
-      # ── Trivy — image scan (fail on HIGH/CRITICAL CVEs) ───────────────────────
-       
-      - name: 15. Trivy Image Vulnerability Scan
+          labels: |
+            org.opencontainers.image.source=${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # ─────────────────────────────────────────────
+      # Trivy Scan
+      # ─────────────────────────────────────────────
+
+      - name: 15. Trivy Scan
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ steps.docker-build.outputs.full_image_path }}
-          format: 'sarif'
-          output: 'trivy-results.sarif'
+          image-ref: ${{ inputs.use-aws && format('{0}/{1}:{2}', steps.login-ecr.outputs.registry, inputs.ecr-repository, steps.meta.outputs.image_tag) || format('{0}/{1}:{2}', env.DOCKER_USER, inputs.ecr-repository, steps.meta.outputs.image_tag) }}
+          format: sarif
+          output: trivy-results.sarif
           severity: HIGH,CRITICAL
-          exit-code: '0'
+          exit-code: "0"
           ignore-unfixed: true
-       
-      - name: 16. Upload Trivy SARIF to GitHub Security tab
+
+      - name: 16. Upload Trivy SARIF
         if: always()
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-results.sarif
           category: trivy-${{ inputs.service-name }}
-      # ── Push image to ECR ───────────
-      
+
+      # ─────────────────────────────────────────────
+      # Push Docker Image
+      # ─────────────────────────────────────────────
+
       - name: 17. Push Docker Image
         id: push
         if: github.event_name == 'push'
-        run: |          
-          IMAGE="${{ steps.docker-build.outputs.full_image_path }}"
-          docker push "$IMAGE"
-          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE" | awk -F@ '{print $2}')
-          echo "digest=$DIGEST" >> $GITHUB_OUTPUT
-          echo "Pushed: $IMAGE  (digest: $DIGEST)"
+        run: |
 
-      # ── Cosign keyless sign ─────
-          
+          if [ "${{ inputs.use-aws }}" = "true" ]; then
+            IMAGE="${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository }}:${{ steps.meta.outputs.image_tag }}"
+          else
+            IMAGE="${{ env.DOCKER_USER }}/${{ inputs.ecr-repository }}:${{ steps.meta.outputs.image_tag }}"
+          fi
+
+          docker push "$IMAGE"
+
+          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE" | awk -F@ '{print $2}')
+
+          echo "digest=$DIGEST" >> $GITHUB_OUTPUT
+
+      # ─────────────────────────────────────────────
+      # Cosign
+      # ─────────────────────────────────────────────
+
       - name: 18. Install Cosign
         uses: sigstore/cosign-installer@v3.5.0
-      
-      - name: 19. Cosign — Sign image (keyless, GitHub OIDC → Fulcio → Rekor)
+
+      - name: 19. Sign Image
         if: github.event_name == 'push'
-        run: |          
+        run: |
+
           if [ "${{ inputs.use-aws }}" = "true" ]; then
-             IMAGE="${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository }}"
+            IMAGE="${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository }}"
           else
-             IMAGE="${{ env.DOCKER_USER }}/${{ inputs.ecr-repository }}"
+            IMAGE="${{ env.DOCKER_USER }}/${{ inputs.ecr-repository }}"
           fi
-     
+
           DIGEST="${{ steps.push.outputs.digest }}"
 
           if [ -z "$DIGEST" ]; then
-            echo "No digest found, skipping signing"
+            echo "No digest found"
             exit 0
           fi
 
@@ -307,8 +315,10 @@ jobs:
         env:
           COSIGN_EXPERIMENTAL: "true"
 
-      - name: Cleanup Postgres
+      # ─────────────────────────────────────────────
+      # Cleanup
+      # ─────────────────────────────────────────────
+
+      - name: 20. Cleanup PostgreSQL
         if: ${{ inputs.needs-database }}
-        run: docker rm -f testdb || true    
-
-
+        run: docker rm -f testdb || true
